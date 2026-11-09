@@ -159,11 +159,11 @@ func ExampleAttr() {
 	// level=ERROR msg="cannot restore" exception.type=not-found exception.code=backup_missing exception.message="no backup of db_1"
 }
 
-func ExampleAsJSON() {
+func ExampleAsException() {
 	err := errors.Wrap(context.Canceled, errors.TypeCanceled, CodeLogsQueryFailed, "query canceled").
 		WithRetryAfter(time.Second)
 
-	body, marshalErr := json.Marshal(errors.AsJSON(err))
+	body, marshalErr := json.Marshal(errors.AsException(err))
 	if marshalErr != nil {
 		panic(marshalErr)
 	}

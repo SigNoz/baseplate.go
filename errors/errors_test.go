@@ -297,7 +297,7 @@ func TestWithAdditionalf_KeepsURL(t *testing.T) {
 			err := WithAdditionalf(testCase.err, "cannot delete user %s", "u_3")
 
 			assert.Equal(t, "https://signoz.io/docs/users", err.URL())
-			assert.Equal(t, "https://signoz.io/docs/users", AsJSON(err).URL)
+			assert.Equal(t, "https://signoz.io/docs/users", AsException(err).URL)
 		})
 	}
 }

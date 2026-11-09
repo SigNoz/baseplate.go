@@ -70,10 +70,10 @@
 //
 // # HTTP
 //
-// [AsJSON] builds the error body of an API response, [HTTPStatus] picks its
-// status code, and [RetryAfterOf] gives the Retry-After delay.
-// [TypeFromHTTPStatus] goes the other way, for errors read from another
-// service's response.
+// [AsException] converts an error to the body of an API response,
+// [HTTPStatus] picks its status code, and [RetryAfterOf] gives the Retry-After
+// delay. [TypeFromHTTPStatus] goes the other way, for errors read from
+// another service's response.
 //
 // # Linting
 //
