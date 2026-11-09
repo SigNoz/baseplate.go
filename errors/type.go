@@ -3,7 +3,6 @@ package errors
 import (
 	"net/http"
 	"regexp"
-	"strings"
 )
 
 // The base types, one per thing a caller can do about an error. A package
@@ -30,29 +29,14 @@ var (
 )
 
 var (
-	baseTypes = []Type{
-		TypeUnknown,
-		TypeInvalidInput,
-		TypeUnauthenticated,
-		TypeForbidden,
-		TypeNotFound,
-		TypeMethodNotAllowed,
-		TypeConflict,
-		TypeTooManyRequests,
-		TypeCanceled,
-		TypeTimeout,
-		TypeUnsupported,
-		TypeUnavailable,
-		TypeInternal,
-		TypeFatal,
-	}
 	typeNameRegexp  = regexp.MustCompile(`^[a-z]+(-[a-z]+)*$`)
 	codeInvalidType = Code{"invalid_type"}
 )
 
 // Type says what a caller can do about an error. It carries the HTTP status
 // that [HTTPStatus] returns and whether [IsRetryable] reports that a retry
-// may succeed. Compare types with ==.
+// may succeed. Compare types with ==. A type marshals to its name but can't be
+// decoded from it, because the name doesn't carry the status or retryability.
 type Type struct {
 	name      string
 	status    int
@@ -95,31 +79,4 @@ func (t Type) String() string {
 // MarshalText returns the type's name, as String does.
 func (t Type) MarshalText() ([]byte, error) {
 	return []byte(t.name), nil
-}
-
-// UnmarshalText sets the type from the name of a base type, such as
-// "not-found". It returns a TypeInvalidInput error for any other name,
-// including the types a package declares with [NewType].
-func (t *Type) UnmarshalText(text []byte) error {
-	parsed, err := parseBaseType(string(text))
-	if err != nil {
-		return err
-	}
-
-	*t = parsed
-
-	return nil
-}
-
-func parseBaseType(name string) (Type, error) {
-	names := make([]string, len(baseTypes))
-	for i, t := range baseTypes {
-		if t.name == name {
-			return t, nil
-		}
-
-		names[i] = t.name
-	}
-
-	return Type{}, Newf(TypeInvalidInput, codeInvalidType, "type %q is invalid, expected one of %s", name, strings.Join(names, ", "))
 }
