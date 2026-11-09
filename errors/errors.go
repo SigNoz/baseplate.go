@@ -33,8 +33,8 @@ func Wrapf(cause error, t typ, c Code, format string, args ...any) *base {
 }
 
 // WithAdditionalf wraps err with a detail formatted as in [fmt.Sprintf],
-// leaving its text and message unchanged. It keeps the type, code and stack
-// trace of the first typed error in err's chain. An untyped err becomes
+// leaving its text and message unchanged. It keeps the type, code, URL and
+// stack trace of the first typed error in err's chain. An untyped err becomes
 // TypeInternal and CodeInternal, with the stack where WithAdditionalf is
 // called.
 func WithAdditionalf(err error, format string, args ...any) *base {
@@ -42,6 +42,7 @@ func WithAdditionalf(err error, format string, args ...any) *base {
 	if inner, ok := errors.AsType[*base](err); ok {
 		b.t = inner.t
 		b.c = inner.c
+		b.url = inner.url
 		b.s = inner.s
 	}
 

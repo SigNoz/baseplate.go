@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWith_CopiesAndKeepsOriginal(t *testing.T) {
@@ -40,8 +41,26 @@ func TestWith_SharedParent_NoAliasing(t *testing.T) {
 	left := parent.WithAdditional("left")
 	right := parent.WithAdditional("right")
 
-	assert.Equal(t, "left", left.Additionals()[2].Message)
-	assert.Equal(t, "right", right.Additionals()[2].Message)
+	leftAdditionals := left.Additionals()
+	rightAdditionals := right.Additionals()
+	require.Len(t, leftAdditionals, 3)
+	require.Len(t, rightAdditionals, 3)
+
+	assert.Equal(t, "left", leftAdditionals[2].Message)
+	assert.Equal(t, "right", rightAdditionals[2].Message)
+}
+
+func TestAdditionals_ReturnsDeepCopy(t *testing.T) {
+	err := New(TypeInvalidInput, CodeInvalidInput, "invalid filter").WithSuggestiveAdditional("key servce", "did you mean: service")
+
+	additionals := err.Additionals()
+	require.Len(t, additionals, 1)
+	require.Len(t, additionals[0].Suggestions, 1)
+
+	additionals[0].Message = "changed"
+	additionals[0].Suggestions[0] = "changed"
+
+	assert.Equal(t, []Additional{{Message: "key servce", Suggestions: []string{"did you mean: service"}}}, err.Additionals())
 }
 
 func TestWithStacktrace_Replaces(t *testing.T) {

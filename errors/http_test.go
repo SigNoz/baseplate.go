@@ -56,6 +56,23 @@ func TestAsJSON(t *testing.T) {
 	}
 }
 
+func TestAsJSON_DoesNotShareSlices(t *testing.T) {
+	err := New(TypeInvalidInput, CodeInvalidInput, "invalid query").
+		WithSuggestiveAdditional("key servce", "did you mean: service").
+		WithSuggestions("check the syntax")
+
+	body := AsJSON(err)
+	require.Len(t, body.Errors, 1)
+	require.Len(t, body.Errors[0].Suggestions, 1)
+	require.Len(t, body.Suggestions, 1)
+
+	body.Errors[0].Suggestions[0] = "changed"
+	body.Suggestions[0] = "changed"
+
+	assert.Equal(t, []Additional{{Message: "key servce", Suggestions: []string{"did you mean: service"}}}, err.Additionals())
+	assert.Equal(t, []string{"check the syntax"}, err.Suggestions())
+}
+
 func TestAsURLValues(t *testing.T) {
 	values := AsURLValues(New(TypeUnauthenticated, MustNewCode("sso_failed"), "sign-in failed").WithURL("https://signoz.io/docs/sso").WithAdditional("state expired"))
 

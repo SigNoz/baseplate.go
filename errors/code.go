@@ -60,3 +60,20 @@ func MustNewCode(s string) Code {
 func (c Code) String() string {
 	return c.s
 }
+
+// MarshalText returns the code, as String does.
+func (c Code) MarshalText() ([]byte, error) {
+	return []byte(c.s), nil
+}
+
+// UnmarshalText sets the code from text, which must be valid for [NewCode].
+func (c *Code) UnmarshalText(text []byte) error {
+	parsed, err := NewCode(string(text))
+	if err != nil {
+		return err
+	}
+
+	*c = parsed
+
+	return nil
+}

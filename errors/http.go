@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 )
 
@@ -56,7 +57,7 @@ func AsJSON(err error) *JSON {
 
 	errs := make([]JSONAdditional, len(b.additionals))
 	for i, additional := range b.additionals {
-		errs[i] = JSONAdditional{Message: additional.Message, Suggestions: nonNil(additional.Suggestions)}
+		errs[i] = JSONAdditional{Message: additional.Message, Suggestions: cloneNonNil(additional.Suggestions)}
 	}
 
 	var retry *JSONRetry
@@ -71,7 +72,7 @@ func AsJSON(err error) *JSON {
 		URL:         b.url,
 		Errors:      errs,
 		Retry:       retry,
-		Suggestions: nonNil(b.suggestions),
+		Suggestions: cloneNonNil(b.suggestions),
 	}
 }
 
@@ -182,10 +183,10 @@ func TypeFromHTTPStatus(status int) typ {
 	return TypeUnknown
 }
 
-func nonNil(s []string) []string {
+func cloneNonNil(s []string) []string {
 	if s == nil {
 		return []string{}
 	}
 
-	return s
+	return slices.Clone(s)
 }

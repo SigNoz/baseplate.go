@@ -281,6 +281,25 @@ func TestWithAdditionalf(t *testing.T) {
 	}
 }
 
+func TestWithAdditionalf_KeepsURL(t *testing.T) {
+	testCases := []struct {
+		name string
+		err  error
+	}{
+		{name: "Typed", err: New(TypeForbidden, CodeForbidden, "user is root").WithURL("https://signoz.io/docs/users")},
+		{name: "ForeignWrapper", err: &tWrapper{cause: New(TypeForbidden, CodeForbidden, "user is root").WithURL("https://signoz.io/docs/users")}},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := WithAdditionalf(testCase.err, "cannot delete user %s", "u_3")
+
+			assert.Equal(t, "https://signoz.io/docs/users", err.URL())
+			assert.Equal(t, "https://signoz.io/docs/users", AsJSON(err).URL)
+		})
+	}
+}
+
 func TestWithAdditionalf_Base_KeepsOriginalStacktrace(t *testing.T) {
 	original := New(TypeForbidden, MustNewCode("root_user"), "user is root")
 
