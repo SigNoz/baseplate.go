@@ -1,0 +1,30 @@
+version: "2"
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - depguard
+    - errorlint
+    - forbidigo
+    - godot
+    - modernize
+    - nilerr
+    - noctx
+  settings:
+    depguard:
+      rules:
+        noerrors:
+          files:
+            - $all
+            - "!**/errors/*.go"
+          deny:
+            - pkg: errors
+              desc: Do not use errors package. Use github.com/SigNoz/baseplate.go/errors instead.
+    forbidigo:
+      forbid:
+        - pattern: fmt.Errorf
+          msg: Do not use fmt.Errorf. Use github.com/SigNoz/baseplate.go/errors instead.
+  exclusions:
+    generated: lax
+    paths:
+      - vendor/
