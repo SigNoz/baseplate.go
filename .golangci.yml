@@ -24,6 +24,9 @@ linters:
       forbid:
         - pattern: fmt.Errorf
           msg: Do not use fmt.Errorf. Use github.com/SigNoz/baseplate.go/errors instead.
+    errcheck:
+      check-type-assertions: true
+      disable-default-exclusions: true
   exclusions:
     generated: lax
     paths:

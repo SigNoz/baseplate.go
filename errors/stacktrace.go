@@ -3,7 +3,6 @@ package errors
 import (
 	"fmt"
 	"runtime"
-	"strings"
 )
 
 type stacktrace []uintptr
@@ -20,19 +19,19 @@ func newStacktrace() stacktrace {
 }
 
 func (s stacktrace) String() string {
-	var buf strings.Builder
+	var buf []byte
 
 	frames := runtime.CallersFrames(s)
 	for {
 		frame, more := frames.Next()
-		fmt.Fprintf(&buf, "%s\n\t%s:%d\n", frame.Function, frame.File, frame.Line)
+		buf = fmt.Appendf(buf, "%s\n\t%s:%d\n", frame.Function, frame.File, frame.Line)
 
 		if !more {
 			break
 		}
 	}
 
-	return buf.String()
+	return string(buf)
 }
 
 func (r rawStacktrace) String() string {
