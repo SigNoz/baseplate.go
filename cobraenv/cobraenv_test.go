@@ -48,7 +48,9 @@ func tExecute(t *testing.T, prefix string, args ...string) (tFlags, error) {
 
 	root.SetArgs(append([]string{"run"}, args...))
 
-	return flags, root.Execute()
+	err := root.Execute()
+
+	return flags, err
 }
 
 func TestParse(t *testing.T) {
