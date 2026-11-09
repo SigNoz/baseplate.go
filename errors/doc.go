@@ -50,16 +50,17 @@
 // the original unchanged:
 //
 //   - WithURL sets a documentation URL.
-//   - WithAdditional adds a detail, such as one per invalid field, with
-//     suggestions of its own.
+//   - WithAdditional adds an additional: a detail such as one invalid field,
+//     with suggestions of its own.
 //   - WithSuggestions sets suggestions for the error as a whole.
 //   - WithRetryAfter sets how long the client should wait before retrying.
 //   - WithStacktrace replaces the recorded stack, such as with the stack of a
 //     recovered panic.
 //
-// [AsException] reads them back for an API response, and the error's methods
-// Type, Code, Message, URL, Suggestions, RetryAfter and Stacktrace read the
-// rest. Wrapping keeps the cause's additionals, suggestions and retry delay.
+// [AsException] puts them in an API response, and the error's methods URL,
+// Suggestions, RetryAfter and Stacktrace read them back, as Type, Code and
+// Message read the rest. Wrapping keeps the cause's additionals, suggestions
+// and retry delay, but not its URL.
 //
 // # Logging
 //

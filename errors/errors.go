@@ -21,8 +21,8 @@ func Newf(t Type, c Code, format string, args ...any) *base {
 
 // Wrap returns an error of type t and code c that wraps cause with message,
 // and records the stack where it is called. Its text is "message: cause". It
-// keeps the details, suggestions and retry delay of the first typed error in
-// cause's chain, but not its URL.
+// keeps the additionals, suggestions and retry delay of the first typed error
+// in cause's chain, but not its URL.
 func Wrap(cause error, t Type, c Code, message string) *base {
 	return wrap(&base{typ: t, code: c, message: message, cause: cause, stacktrace: newStacktrace()})
 }
@@ -32,7 +32,7 @@ func Wrapf(cause error, t Type, c Code, format string, args ...any) *base {
 	return wrap(&base{typ: t, code: c, message: fmt.Sprintf(format, args...), cause: cause, stacktrace: newStacktrace()})
 }
 
-// WithAdditionalf wraps err with a detail formatted as in [fmt.Sprintf],
+// WithAdditionalf wraps err with an additional formatted as in [fmt.Sprintf],
 // leaving its text and message unchanged. It keeps the type, code, URL and
 // stack trace of the first typed error in err's chain. An untyped err becomes
 // TypeInternal and CodeUnknown, with the stack where WithAdditionalf is

@@ -6,8 +6,8 @@ import (
 
 var (
 	// CodeUnknown is what [CodeOf] returns for an untyped error, and the code
-	// [WithDetailf] gives one. Declare a package's own codes for the errors it
-	// creates.
+	// [WithAdditionalf] gives one. Declare a package's own codes for the errors
+	// it creates.
 	CodeUnknown = Code{"unknown"}
 )
 

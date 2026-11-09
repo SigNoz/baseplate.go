@@ -101,8 +101,8 @@ func (b *base) WithURL(url string) *base {
 	return &copied
 }
 
-// WithAdditional returns a copy of the error with a detail added, along with
-// the suggestions that relate to that detail alone.
+// WithAdditional returns a copy of the error with an additional: a detail such
+// as one invalid field, with suggestions that relate to that detail alone.
 func (b *base) WithAdditional(message string, suggestions ...string) *base {
 	copied := *b
 	copied.additionals = append(slices.Clone(b.additionals), additional{message: message, suggestions: slices.Clone(suggestions)})

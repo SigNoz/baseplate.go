@@ -12,8 +12,8 @@ const (
 	statusClientClosedRequest int = 499
 )
 
-// AsURLValues returns err's code, message and url, and its details as a JSON
-// array under errors, for the query string of a redirect that reports an
+// AsURLValues returns err's code, message and url, and its additionals as a
+// JSON array under errors, for the query string of a redirect that reports an
 // error. It reads err the way [AsException] does.
 func AsURLValues(err error) url.Values {
 	body := AsException(err)
