@@ -2,6 +2,7 @@ package cobraenv
 
 import (
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -17,6 +18,8 @@ var (
 	CodeEnvInvalid    = errors.MustNewCode("env_invalid")
 )
 
+var prefixPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)
+
 // Parse fills every flag of cmd that wasn't passed on the command line from
 // its environment variable, named after prefix and the flag: --log-level
 // reads ZEUS_LOG_LEVEL for the prefix "zeus". Flags passed on the command
@@ -31,7 +34,7 @@ func Parse(cmd *cobra.Command, prefix string) error {
 		return errors.New(errors.TypeInvalidInput, CodePrefixMissing, "prefix is required")
 	}
 
-	if !validPrefix(prefix) {
+	if !prefixPattern.MatchString(prefix) {
 		return errors.Newf(errors.TypeInvalidInput, CodePrefixInvalid, "prefix %q is invalid, expected a letter followed by letters, digits or underscores", prefix)
 	}
 
@@ -63,17 +66,4 @@ func Parse(cmd *cobra.Command, prefix string) error {
 
 func envName(prefix, flag string) string {
 	return strings.ToUpper(strings.ReplaceAll(prefix+"_"+flag, "-", "_"))
-}
-
-func validPrefix(prefix string) bool {
-	for i, r := range prefix {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
-		case i > 0 && (r >= '0' && r <= '9' || r == '_'):
-		default:
-			return false
-		}
-	}
-
-	return true
 }
