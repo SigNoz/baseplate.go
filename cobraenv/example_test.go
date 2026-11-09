@@ -9,18 +9,18 @@ import (
 	"github.com/SigNoz/baseplate.go/cobraenv"
 )
 
-// The command line sets --log-level, so ZEUS_LOG_LEVEL is ignored, while
-// ZEUS_HTTP_ADDRESS fills --http-address.
+// The command line sets --log-level, so MYAPP_LOG_LEVEL is ignored, while
+// MYAPP_HTTP_ADDRESS fills --http-address.
 func ExampleParse() {
-	_ = os.Setenv("ZEUS_HTTP_ADDRESS", "0.0.0.0:9090")
-	_ = os.Setenv("ZEUS_LOG_LEVEL", "debug")
+	_ = os.Setenv("MYAPP_HTTP_ADDRESS", "0.0.0.0:9090")
+	_ = os.Setenv("MYAPP_LOG_LEVEL", "debug")
 
 	var address, logLevel string
 
 	root := &cobra.Command{
-		Use: "zeus",
+		Use: "myapp",
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			return cobraenv.Parse(cmd, "zeus")
+			return cobraenv.Parse(cmd, "myapp")
 		},
 		RunE: func(*cobra.Command, []string) error {
 			_, _ = fmt.Println(address, logLevel)

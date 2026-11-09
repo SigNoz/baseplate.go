@@ -22,7 +22,7 @@ var prefixPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)
 
 // Parse fills every flag of cmd that wasn't passed on the command line from
 // its environment variable, named after prefix and the flag: --log-level
-// reads ZEUS_LOG_LEVEL for the prefix "zeus". Flags passed on the command
+// reads MYAPP_LOG_LEVEL for the prefix "myapp". Flags passed on the command
 // line and variables that are unset or empty are left alone.
 //
 // It returns an error when prefix is empty or isn't a letter followed by

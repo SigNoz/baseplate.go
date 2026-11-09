@@ -3,15 +3,15 @@
 //
 // [Parse] reads one variable per flag, named after the prefix and the flag:
 // the prefix and the flag name joined by an underscore, upper-cased, with
-// dashes turned into underscores. For the prefix "zeus", --log-level reads
-// ZEUS_LOG_LEVEL and --http-address reads ZEUS_HTTP_ADDRESS.
+// dashes turned into underscores. For the prefix "myapp", --log-level reads
+// MYAPP_LOG_LEVEL and --http-address reads MYAPP_HTTP_ADDRESS.
 //
 // # Precedence
 //
 // A flag passed on the command line wins over its variable, and a variable
 // wins over the flag's default. A variable set to the empty string counts as
 // unset. A variable is parsed the way the flag parses a command-line value,
-// so ZEUS_PEERS=a,b fills a string slice flag with two values.
+// so MYAPP_PEERS=a,b fills a string slice flag with two values.
 //
 // # Usage
 //
@@ -20,9 +20,9 @@
 // command's flags by then, so every flag of the command being run is filled:
 //
 //	root := &cobra.Command{
-//		Use: "zeus",
+//		Use: "myapp",
 //		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-//			return cobraenv.Parse(cmd, "zeus")
+//			return cobraenv.Parse(cmd, "myapp")
 //		},
 //	}
 //
