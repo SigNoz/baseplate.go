@@ -46,13 +46,18 @@ func (b *Base) Code() Code {
 	return b.c
 }
 
-// Message is the error's own message without its cause, or the cause's text when the error has no message.
+// Message is the error's own message without its cause. Without one, it is the message of the first Base
+// in the cause's chain, or the cause's text when there is none.
 func (b *Base) Message() string {
-	if b.message == "" && b.cause != nil {
-		return b.cause.Error()
+	if b.message != "" || b.cause == nil {
+		return b.message
 	}
 
-	return b.message
+	if inner, ok := errors.AsType[*Base](b.cause); ok {
+		return inner.Message()
+	}
+
+	return b.cause.Error()
 }
 
 func (b *Base) Unwrap() error {
@@ -148,17 +153,14 @@ func Wrapf(cause error, t typ, c Code, format string, args ...any) *Base {
 	return wrap(&Base{t: t, c: c, message: fmt.Sprintf(format, args...), cause: cause, s: newStacktrace()})
 }
 
-// WithAdditionalf adds a detail to err. A *Base keeps its stack trace. Any other error is wrapped
-// with the type and code of the first Base in its chain, or TypeInternal and CodeInternal when there is none.
+// WithAdditionalf wraps err to add a detail, keeping the type, code and stack trace of the first Base in its chain,
+// or TypeInternal, CodeInternal and a new stack trace when there is none.
 func WithAdditionalf(err error, format string, args ...any) *Base {
-	if base, ok := err.(*Base); ok { //nolint:errorlint // Only err itself keeps its stack trace; anything wrapping a Base is wrapped again below.
-		return base.WithAdditional(fmt.Sprintf(format, args...))
-	}
-
 	base := &Base{t: TypeInternal, c: CodeInternal, cause: err, s: newStacktrace()}
 	if inner, ok := errors.AsType[*Base](err); ok {
 		base.t = inner.t
 		base.c = inner.c
+		base.s = inner.s
 	}
 
 	return wrap(base).WithAdditional(fmt.Sprintf(format, args...))

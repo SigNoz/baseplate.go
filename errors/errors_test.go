@@ -249,8 +249,6 @@ func TestWrap_KeepsDetailsButNotURL(t *testing.T) {
 }
 
 func TestWithAdditionalf(t *testing.T) {
-	tForeignWrapper := &tWrapper{cause: New(TypeNotFound, CodeNotFound, "user not found").WithAdditional("checked org o_1")}
-
 	testCases := []struct {
 		name                string
 		err                 error
@@ -259,7 +257,6 @@ func TestWithAdditionalf(t *testing.T) {
 		expectedType        typ
 		expectedCode        Code
 		expectedAdditionals []Additional
-		expectedCause       error
 	}{
 		{
 			name:                "Base_AddsDetail",
@@ -269,7 +266,15 @@ func TestWithAdditionalf(t *testing.T) {
 			expectedType:        TypeForbidden,
 			expectedCode:        MustNewCode("root_user"),
 			expectedAdditionals: []Additional{{Message: "a root user can't be changed"}, {Message: "cannot delete user u_1"}},
-			expectedCause:       nil,
+		},
+		{
+			name:                "WrappedBase_MessageWithoutCause",
+			err:                 Wrap(fs.ErrClosed, TypeInternal, MustNewCode("store_closed"), "cannot read user"),
+			expectedError:       "cannot read user: file already closed",
+			expectedMessage:     "cannot read user",
+			expectedType:        TypeInternal,
+			expectedCode:        MustNewCode("store_closed"),
+			expectedAdditionals: []Additional{{Message: "cannot delete user u_1"}},
 		},
 		{
 			name:                "Foreign_Internal",
@@ -279,17 +284,15 @@ func TestWithAdditionalf(t *testing.T) {
 			expectedType:        TypeInternal,
 			expectedCode:        CodeInternal,
 			expectedAdditionals: []Additional{{Message: "cannot delete user u_1"}},
-			expectedCause:       fs.ErrPermission,
 		},
 		{
-			name:                "ForeignWrapper_InnerTypeAndDetails",
-			err:                 tForeignWrapper,
+			name:                "ForeignWrapper_InnerTypeMessageAndDetails",
+			err:                 &tWrapper{cause: New(TypeNotFound, CodeNotFound, "user not found").WithAdditional("checked org o_1")},
 			expectedError:       "wrapped by a library: user not found",
-			expectedMessage:     "wrapped by a library: user not found",
+			expectedMessage:     "user not found",
 			expectedType:        TypeNotFound,
 			expectedCode:        CodeNotFound,
 			expectedAdditionals: []Additional{{Message: "checked org o_1"}, {Message: "cannot delete user u_1"}},
-			expectedCause:       tForeignWrapper,
 		},
 	}
 
@@ -302,9 +305,17 @@ func TestWithAdditionalf(t *testing.T) {
 			assert.Equal(t, testCase.expectedType, err.Type())
 			assert.Equal(t, testCase.expectedCode, err.Code())
 			assert.Equal(t, testCase.expectedAdditionals, err.Additionals())
-			assert.Equal(t, testCase.expectedCause, err.Unwrap())
+			assert.Equal(t, testCase.err, err.Unwrap())
 		})
 	}
+}
+
+func TestWithAdditionalf_Base_KeepsOriginalStacktrace(t *testing.T) {
+	original := New(TypeForbidden, MustNewCode("root_user"), "user is root")
+
+	err := WithAdditionalf(&tWrapper{cause: original}, "cannot delete user %s", "u_2")
+
+	assert.Equal(t, original.Stacktrace(), err.Stacktrace())
 }
 
 func TestStacktrace_StartsAtCaller(t *testing.T) {
