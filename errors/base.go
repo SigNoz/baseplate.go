@@ -13,17 +13,15 @@ type base struct {
 	message     string
 	cause       error
 	url         string
-	additionals []Additional
+	additionals []additional
 	suggestions []string
 	retryAfter  time.Duration
 	stacktrace  fmt.Stringer
 }
 
-// Additional is one detail of an error, such as one invalid field of a
-// request.
-type Additional struct {
-	Message     string
-	Suggestions []string // Relate to this detail alone, such as "did you mean: service".
+type additional struct {
+	message     string
+	suggestions []string
 }
 
 // Error returns the error's message followed by ": " and its cause, or the
@@ -76,17 +74,6 @@ func (b *base) URL() string {
 	return b.url
 }
 
-// Additionals returns a copy of the error's details, in the order they were
-// added.
-func (b *base) Additionals() []Additional {
-	additionals := make([]Additional, len(b.additionals))
-	for i, additional := range b.additionals {
-		additionals[i] = Additional{Message: additional.Message, Suggestions: slices.Clone(additional.Suggestions)}
-	}
-
-	return additionals
-}
-
 // Suggestions returns a copy of the suggestions that relate to the error as a
 // whole.
 func (b *base) Suggestions() []string {
@@ -118,7 +105,7 @@ func (b *base) WithURL(url string) *base {
 // the suggestions that relate to that detail alone.
 func (b *base) WithAdditional(message string, suggestions ...string) *base {
 	copied := *b
-	copied.additionals = append(slices.Clone(b.additionals), Additional{Message: message, Suggestions: slices.Clone(suggestions)})
+	copied.additionals = append(slices.Clone(b.additionals), additional{message: message, suggestions: slices.Clone(suggestions)})
 
 	return &copied
 }

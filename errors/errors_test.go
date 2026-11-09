@@ -212,7 +212,7 @@ func TestWrap_KeepsDetailsButNotURL(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			assert.Equal(t, cause.Additionals(), testCase.err.Additionals())
+			assert.Equal(t, cause.additionals, testCase.err.additionals)
 			assert.Equal(t, []string{"retry later"}, testCase.err.Suggestions())
 			assert.Equal(t, time.Second, testCase.err.RetryAfter())
 			assert.Equal(t, time.Second, RetryAfterOf(testCase.err))
@@ -229,7 +229,7 @@ func TestWithAdditionalf(t *testing.T) {
 		expectedMessage     string
 		expectedType        Type
 		expectedCode        Code
-		expectedAdditionals []Additional
+		expectedAdditionals []additional
 	}{
 		{
 			name:                "Base_AddsDetail",
@@ -238,7 +238,7 @@ func TestWithAdditionalf(t *testing.T) {
 			expectedMessage:     "user is root",
 			expectedType:        TypeForbidden,
 			expectedCode:        MustNewCode("root_user"),
-			expectedAdditionals: []Additional{{Message: "a root user can't be changed"}, {Message: "cannot delete user u_1"}},
+			expectedAdditionals: []additional{{message: "a root user can't be changed"}, {message: "cannot delete user u_1"}},
 		},
 		{
 			name:                "WrappedBase_MessageWithoutCause",
@@ -247,7 +247,7 @@ func TestWithAdditionalf(t *testing.T) {
 			expectedMessage:     "cannot read user",
 			expectedType:        TypeInternal,
 			expectedCode:        MustNewCode("store_closed"),
-			expectedAdditionals: []Additional{{Message: "cannot delete user u_1"}},
+			expectedAdditionals: []additional{{message: "cannot delete user u_1"}},
 		},
 		{
 			name:                "Foreign_InternalUnknown",
@@ -256,7 +256,7 @@ func TestWithAdditionalf(t *testing.T) {
 			expectedMessage:     "permission denied",
 			expectedType:        TypeInternal,
 			expectedCode:        CodeUnknown,
-			expectedAdditionals: []Additional{{Message: "cannot delete user u_1"}},
+			expectedAdditionals: []additional{{message: "cannot delete user u_1"}},
 		},
 		{
 			name:                "ForeignWrapper_InnerTypeMessageAndDetails",
@@ -265,7 +265,7 @@ func TestWithAdditionalf(t *testing.T) {
 			expectedMessage:     "user not found",
 			expectedType:        TypeNotFound,
 			expectedCode:        MustNewCode("not_found"),
-			expectedAdditionals: []Additional{{Message: "checked org o_1"}, {Message: "cannot delete user u_1"}},
+			expectedAdditionals: []additional{{message: "checked org o_1"}, {message: "cannot delete user u_1"}},
 		},
 	}
 
@@ -277,7 +277,7 @@ func TestWithAdditionalf(t *testing.T) {
 			assert.Equal(t, testCase.expectedMessage, err.Message())
 			assert.Equal(t, testCase.expectedType, err.Type())
 			assert.Equal(t, testCase.expectedCode, err.Code())
-			assert.Equal(t, testCase.expectedAdditionals, err.Additionals())
+			assert.Equal(t, testCase.expectedAdditionals, err.additionals)
 			assert.Equal(t, testCase.err, err.Unwrap())
 		})
 	}

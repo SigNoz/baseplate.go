@@ -57,9 +57,9 @@
 //   - WithStacktrace replaces the recorded stack, such as with the stack of a
 //     recovered panic.
 //
-// The error's methods Type, Code, Message, URL, Additionals, Suggestions,
-// RetryAfter and Stacktrace read them back. Wrapping keeps the cause's
-// details, suggestions and retry delay.
+// [AsException] reads them back for an API response, and the error's methods
+// Type, Code, Message, URL, Suggestions, RetryAfter and Stacktrace read the
+// rest. Wrapping keeps the cause's additionals, suggestions and retry delay.
 //
 // # Logging
 //

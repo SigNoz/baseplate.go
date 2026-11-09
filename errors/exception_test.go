@@ -68,6 +68,6 @@ func TestAsException_DoesNotShareSlices(t *testing.T) {
 	body.Errors[0].Suggestions[0] = "changed"
 	body.Suggestions[0] = "changed"
 
-	assert.Equal(t, []Additional{{Message: "key servce", Suggestions: []string{"did you mean: service"}}}, err.Additionals())
+	assert.Equal(t, []additional{{message: "key servce", suggestions: []string{"did you mean: service"}}}, err.additionals)
 	assert.Equal(t, []string{"check the syntax"}, err.Suggestions())
 }

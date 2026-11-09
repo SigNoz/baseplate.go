@@ -49,7 +49,7 @@ func AsException(err error) *Exception {
 
 	additionals := make([]ExceptionAdditional, len(b.additionals))
 	for i, additional := range b.additionals {
-		additionals[i] = ExceptionAdditional{Message: additional.Message, Suggestions: cloneNonNil(additional.Suggestions)}
+		additionals[i] = ExceptionAdditional{Message: additional.message, Suggestions: cloneNonNil(additional.suggestions)}
 	}
 
 	var retry *ExceptionRetry

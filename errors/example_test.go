@@ -55,7 +55,7 @@ func ExampleNew_details() {
 
 	_, _ = fmt.Println(err.Message())
 	_, _ = fmt.Println(err.URL())
-	_, _ = fmt.Println(err.Additionals())
+	_, _ = fmt.Println(errors.AsException(err).Errors)
 	_, _ = fmt.Println(err.Suggestions())
 	// Output:
 	// invalid filter
@@ -96,7 +96,7 @@ func ExampleWithAdditionalf() {
 
 	_, _ = fmt.Println(err)
 	_, _ = fmt.Println(errors.TypeOf(err), errors.CodeOf(err))
-	_, _ = fmt.Println(err.Additionals())
+	_, _ = fmt.Println(errors.AsException(err).Errors)
 	// Output:
 	// permission denied
 	// internal unknown

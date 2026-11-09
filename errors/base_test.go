@@ -18,18 +18,18 @@ func TestWith_CopiesAndKeepsOriginal(t *testing.T) {
 		WithSuggestions("narrow the time range").
 		WithRetryAfter(5 * time.Second)
 
-	assert.Equal(t, []Additional{{Message: "first"}}, original.Additionals())
+	assert.Equal(t, []additional{{message: "first"}}, original.additionals)
 	assert.Empty(t, original.URL())
 	assert.Empty(t, original.Suggestions())
 	assert.Zero(t, original.RetryAfter())
 
 	assert.Equal(t, "https://signoz.io/docs/filters", changed.URL())
-	assert.Equal(t, []Additional{
-		{Message: "first"},
-		{Message: "second"},
-		{Message: "third"},
-		{Message: "unknown key servce", Suggestions: []string{"did you mean: service"}},
-	}, changed.Additionals())
+	assert.Equal(t, []additional{
+		{message: "first"},
+		{message: "second"},
+		{message: "third"},
+		{message: "unknown key servce", suggestions: []string{"did you mean: service"}},
+	}, changed.additionals)
 	assert.Equal(t, []string{"narrow the time range"}, changed.Suggestions())
 	assert.Equal(t, 5*time.Second, changed.RetryAfter())
 	assert.Equal(t, original.Stacktrace(), changed.Stacktrace())
@@ -41,26 +41,13 @@ func TestWith_SharedParent_NoAliasing(t *testing.T) {
 	left := parent.WithAdditional("left")
 	right := parent.WithAdditional("right")
 
-	leftAdditionals := left.Additionals()
-	rightAdditionals := right.Additionals()
+	leftAdditionals := left.additionals
+	rightAdditionals := right.additionals
 	require.Len(t, leftAdditionals, 3)
 	require.Len(t, rightAdditionals, 3)
 
-	assert.Equal(t, "left", leftAdditionals[2].Message)
-	assert.Equal(t, "right", rightAdditionals[2].Message)
-}
-
-func TestAdditionals_ReturnsDeepCopy(t *testing.T) {
-	err := New(TypeInvalidInput, MustNewCode("invalid_input"), "invalid filter").WithAdditional("key servce", "did you mean: service")
-
-	additionals := err.Additionals()
-	require.Len(t, additionals, 1)
-	require.Len(t, additionals[0].Suggestions, 1)
-
-	additionals[0].Message = "changed"
-	additionals[0].Suggestions[0] = "changed"
-
-	assert.Equal(t, []Additional{{Message: "key servce", Suggestions: []string{"did you mean: service"}}}, err.Additionals())
+	assert.Equal(t, "left", leftAdditionals[2].message)
+	assert.Equal(t, "right", rightAdditionals[2].message)
 }
 
 func TestWithStacktrace_Replaces(t *testing.T) {
