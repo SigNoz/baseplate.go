@@ -34,3 +34,7 @@ go.work.sum
 
 # primus tools and scratch files
 tmp/
+
+# Claude Code plans and worktrees
+.claude/plans/
+.claude/worktrees/

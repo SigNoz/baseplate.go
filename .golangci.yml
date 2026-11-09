@@ -4,12 +4,17 @@ linters:
   enable:
     - bodyclose
     - depguard
+    - dupword
     - errorlint
     - forbidigo
+    - godoclint
     - godot
+    - misspell
     - modernize
     - nilerr
     - noctx
+    - revive
+    - testableexamples
   settings:
     depguard:
       rules:
@@ -24,6 +29,22 @@ linters:
       forbid:
         - pattern: fmt.Errorf
           msg: Do not use fmt.Errorf. Use github.com/SigNoz/baseplate.go/errors instead.
+    godoclint:
+      default: all
+      disable:
+        - require-doc
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+    godot:
+      scope: all
+      capital: true
+    misspell:
+      locale: US
+    errcheck:
+      check-type-assertions: true
+      disable-default-exclusions: true
   exclusions:
     generated: lax
     paths:
