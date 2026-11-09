@@ -14,7 +14,7 @@ const (
 
 // AsURLValues returns err's code, message and url, and its additionals as a
 // JSON array under errors, for the query string of a redirect that reports an
-// error. It reads err the way [AsException] does. Don't pass a nil err.
+// error. It reads err the way [AsException] does.
 func AsURLValues(err error) url.Values {
 	body := AsException(err)
 
@@ -35,14 +35,9 @@ func AsURLValues(err error) url.Values {
 // HTTPStatus returns the HTTP status code of the type of the first typed error
 // in err's chain, which [NewType] sets for a package's own types. The base
 // types map to the matching 4xx and 5xx statuses, with TypeCanceled as nginx's
-// 499. TypeInternal, TypeFatal, TypeUnknown, the zero Type and an untyped error
-// are 500.
+// 499. TypeInternal, TypeFatal, TypeUnknown and an untyped error are 500.
 func HTTPStatus(err error) int {
-	if status := TypeOf(err).status; status != 0 {
-		return status
-	}
-
-	return http.StatusInternalServerError
+	return TypeOf(err).status
 }
 
 // TypeFromHTTPStatus returns the base type for an HTTP status code, the reverse

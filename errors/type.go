@@ -3,15 +3,13 @@ package errors
 import (
 	"net/http"
 	"regexp"
-	"slices"
 )
 
 // The base types, one per thing a caller can do about an error. A package
 // declares more with [NewType] or [MustNewType].
 var (
-	// TypeUnknown is what [TypeOf] returns for an untyped error, and what
-	// [TypeFromHTTPStatus] returns for a status it can't map. Otherwise, pick
-	// a type that says what the caller can do.
+	// TypeUnknown is what [TypeOf] returns for an untyped error. Don't create
+	// errors with it.
 	TypeUnknown          = Type{name: "unknown", status: http.StatusInternalServerError, retryable: true}
 	TypeInvalidInput     = Type{name: "invalid-input", status: http.StatusBadRequest, retryable: false}
 	TypeUnauthenticated  = Type{name: "unauthenticated", status: http.StatusUnauthorized, retryable: false}
@@ -26,28 +24,11 @@ var (
 	TypeUnsupported = Type{name: "unsupported", status: http.StatusNotImplemented, retryable: false}
 	TypeUnavailable = Type{name: "unavailable", status: http.StatusServiceUnavailable, retryable: true}
 	TypeInternal    = Type{name: "internal", status: http.StatusInternalServerError, retryable: true}
-	// TypeFatal is a failure the code couldn't handle, such as a recovered
-	// panic. Like TypeInternal, a retry may succeed.
+	// TypeFatal is an unrecoverable failure, such as a recovered panic.
 	TypeFatal = Type{name: "fatal", status: http.StatusInternalServerError, retryable: true}
 )
 
 var (
-	baseTypeNames = []string{
-		TypeUnknown.name,
-		TypeInvalidInput.name,
-		TypeUnauthenticated.name,
-		TypeForbidden.name,
-		TypeNotFound.name,
-		TypeMethodNotAllowed.name,
-		TypeConflict.name,
-		TypeTooManyRequests.name,
-		TypeCanceled.name,
-		TypeTimeout.name,
-		TypeUnsupported.name,
-		TypeUnavailable.name,
-		TypeInternal.name,
-		TypeFatal.name,
-	}
 	typeNameRegexp  = regexp.MustCompile(`^[a-z]+(-[a-z]+)*$`)
 	codeInvalidType = Code{"invalid_type"}
 )
@@ -66,8 +47,7 @@ type Type struct {
 // "license-unavailable". The name must be kebab-case, and status an HTTP
 // error status from 400 to 599. Retryable says whether retrying the operation
 // that failed may succeed without a change to the request, credentials or
-// system. It returns a TypeInvalidInput error for an invalid name or status,
-// or for the name of a base type such as "not-found".
+// system. It returns a TypeInvalidInput error for an invalid name or status.
 func NewType(name string, status int, retryable bool) (Type, error) {
 	if !typeNameRegexp.MatchString(name) {
 		return Type{}, Newf(TypeInvalidInput, codeInvalidType, "type %q is invalid, expected kebab-case such as not-found", name)
@@ -75,10 +55,6 @@ func NewType(name string, status int, retryable bool) (Type, error) {
 
 	if status < http.StatusBadRequest || status > 599 {
 		return Type{}, Newf(TypeInvalidInput, codeInvalidType, "status %d of type %q is invalid, expected 400 to 599", status, name)
-	}
-
-	if slices.Contains(baseTypeNames, name) {
-		return Type{}, Newf(TypeInvalidInput, codeInvalidType, "type %q is a base type, expected a name of the package's own", name)
 	}
 
 	return Type{name: name, status: status, retryable: retryable}, nil

@@ -55,10 +55,6 @@ func TestHTTPStatus_Foreign_InternalServerError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, HTTPStatus(context.DeadlineExceeded))
 }
 
-func TestHTTPStatus_ZeroType_InternalServerError(t *testing.T) {
-	assert.Equal(t, http.StatusInternalServerError, HTTPStatus(New(Type{}, MustNewCode("zero_type"), "zero type")))
-}
-
 func TestTypeFromHTTPStatus_Unmapped(t *testing.T) {
 	testCases := []struct {
 		name         string

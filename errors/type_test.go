@@ -27,8 +27,6 @@ func TestNewType(t *testing.T) {
 		{name: "Empty_InvalidInput", typeName: "", status: http.StatusBadRequest, expectedError: true},
 		{name: "SuccessStatus_InvalidInput", typeName: "accepted", status: http.StatusOK, expectedError: true},
 		{name: "StatusAbove599_InvalidInput", typeName: "broken", status: 600, expectedError: true},
-		{name: "BaseTypeName_InvalidInput", typeName: "not-found", status: http.StatusNotFound, expectedError: true},
-		{name: "UnknownTypeName_InvalidInput", typeName: "unknown", status: http.StatusInternalServerError, expectedError: true},
 	}
 
 	for _, testCase := range testCases {
