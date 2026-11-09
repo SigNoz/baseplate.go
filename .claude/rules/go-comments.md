@@ -33,10 +33,11 @@ baseplate.go is a published library, and pkg.go.dev builds its documentation fro
 
 - Keep comments short, without narration, and end each one with a period. Sentences start with a capital letter, so a sentence never starts with a parameter name such as `err`.
 - Wrap doc comment lines at 77 characters; pkg.go.dev reflows paragraphs, so readers don't see the breaks. Code blocks in doc comments are exempt.
-- `Test*` and `Example*` functions are exported too, so each gets a one-line doc comment saying what it checks or shows. pkg.go.dev shows an example's comment as its description.
+- A `Test*` function gets a comment only when its name doesn't say enough, such as for a regression or an odd case: `// Empty strings are not valid input when scanning a string.`
+- An `Example*` function gets a comment only when the example needs context, written as prose for the reader rather than a label: `// The handler drops the time and the stack trace to keep the output stable.` pkg.go.dev shows it above the example.
 - Link to the standard library with doc links (`[fmt.Errorf]`), not plain names.
 - No end-of-line comments except on struct fields.
-- `godoclint`, `godot`, `misspell`, `dupword` and `testableexamples` check these rules.
+- `revive` (`exported`, `package-comments`), `godoclint`, `godot`, `misspell`, `dupword` and `testableexamples` check these rules. None of them checks the methods of an unexported type; review does.
 - Rationale that needs prose, such as why a version is pinned or why a design was chosen, goes in the PR, not the code.
 - Directives aren't comments: keep `//go:embed`, `//go:generate` and the like. `//nolint` is never allowed ([go-checks.md](go-checks.md)).
 - Generated code keeps the comments its generator emits; don't add or trim them.

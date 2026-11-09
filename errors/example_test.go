@@ -18,8 +18,6 @@ var (
 	CodeLicenseExpired = errors.MustNewCode("license_expired")
 )
 
-// Example wraps an error from the standard library and looks up its type and
-// code.
 func Example() {
 	err := errors.Wrapf(fs.ErrNotExist, errors.TypeNotFound, errors.CodeNotFound, "no backup of %s", "db_1")
 
@@ -32,7 +30,6 @@ func Example() {
 	// true true
 }
 
-// ExampleNew creates an error with a package's own code.
 func ExampleNew() {
 	err := errors.New(errors.TypeLicenseUnavailable, CodeLicenseExpired, "license expired on 2026-10-01")
 
@@ -43,7 +40,6 @@ func ExampleNew() {
 	// true
 }
 
-// ExampleNew_details adds details for an API response to an error.
 func ExampleNew_details() {
 	err := errors.New(errors.TypeInvalidInput, errors.CodeInvalidInput, "invalid filter").
 		WithURL("https://signoz.io/docs/filters").
@@ -62,7 +58,6 @@ func ExampleNew_details() {
 	// [check the filter syntax]
 }
 
-// ExampleWrap wraps a typed error, which keeps its retry delay.
 func ExampleWrap() {
 	cause := errors.New(errors.TypeTooManyRequests, errors.CodeTooManyRequests, "rate limited").WithRetryAfter(2 * time.Second)
 
@@ -77,7 +72,7 @@ func ExampleWrap() {
 	// unavailable 2s
 }
 
-// ExampleWithAdditionalf adds a detail to an untyped error.
+// An untyped error becomes TypeInternal, and its text stays the same.
 func ExampleWithAdditionalf() {
 	err := errors.WithAdditionalf(fs.ErrPermission, "cannot delete user %s", "u_1")
 
@@ -90,7 +85,6 @@ func ExampleWithAdditionalf() {
 	// [{cannot delete user u_1 []}]
 }
 
-// ExampleTypeOf looks up the type of a joined error and of an untyped one.
 func ExampleTypeOf() {
 	typed := errors.Join(context.Canceled, errors.New(errors.TypeConflict, errors.CodeConflict, "topic exists"))
 	untyped := context.DeadlineExceeded
@@ -102,7 +96,6 @@ func ExampleTypeOf() {
 	// unknown
 }
 
-// ExampleMessageOf reads the message of a wrapped error without its cause.
 func ExampleMessageOf() {
 	err := errors.Wrap(fs.ErrClosed, errors.TypeInternal, errors.CodeInternal, "cannot read user")
 
@@ -113,7 +106,6 @@ func ExampleMessageOf() {
 	// file already closed
 }
 
-// ExampleIsRetryable decides whether to retry a typed and an untyped error.
 func ExampleIsRetryable() {
 	_, _ = fmt.Println(errors.IsRetryable(errors.New(errors.TypeUnavailable, errors.CodeUnavailable, "endpoint unreachable")))
 	_, _ = fmt.Println(errors.IsRetryable(errors.New(errors.TypeInvalidInput, errors.CodeInvalidInput, "bad id")))
@@ -124,7 +116,6 @@ func ExampleIsRetryable() {
 	// true
 }
 
-// ExampleNewCode rejects a code in kebab-case.
 func ExampleNewCode() {
 	_, err := errors.NewCode("not-found")
 
@@ -133,8 +124,7 @@ func ExampleNewCode() {
 	// code "not-found" is invalid, expected a letter followed by letters, digits or underscores
 }
 
-// ExampleAttr logs an error with log/slog. The example drops the time and the
-// stack trace to keep its output stable.
+// The handler drops the time and the stack trace to keep the output stable.
 func ExampleAttr() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
@@ -151,7 +141,6 @@ func ExampleAttr() {
 	// level=ERROR msg="cannot restore" exception.type=not-found exception.code=not_found exception.message="no backup of db_1"
 }
 
-// ExampleAsJSON builds the error body of an API response.
 func ExampleAsJSON() {
 	err := errors.Wrap(context.Canceled, errors.TypeCanceled, errors.CodeCanceled, "query canceled").
 		WithRetryAfter(time.Second)
@@ -166,7 +155,6 @@ func ExampleAsJSON() {
 	// {"type":"canceled","code":"canceled","message":"query canceled","errors":[],"retry":{"delay":1000000000},"suggestions":[]}
 }
 
-// ExampleHTTPStatus picks the status code for a typed and an untyped error.
 func ExampleHTTPStatus() {
 	_, _ = fmt.Println(errors.HTTPStatus(errors.New(errors.TypeNotFound, errors.CodeNotFound, "dashboard not found")))
 	_, _ = fmt.Println(errors.HTTPStatus(context.DeadlineExceeded))
@@ -175,7 +163,6 @@ func ExampleHTTPStatus() {
 	// 500
 }
 
-// ExampleTypeFromHTTPStatus reads the type from another service's status code.
 func ExampleTypeFromHTTPStatus() {
 	_, _ = fmt.Println(errors.TypeFromHTTPStatus(http.StatusTooManyRequests))
 	_, _ = fmt.Println(errors.TypeFromHTTPStatus(http.StatusBadGateway))

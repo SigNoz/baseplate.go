@@ -22,8 +22,6 @@ func (w *tWrapper) Unwrap() error {
 	return w.cause
 }
 
-// TestError checks the text, message, type and code of errors from each
-// constructor.
 func TestError(t *testing.T) {
 	testCases := []struct {
 		name            string
@@ -77,8 +75,6 @@ func TestError(t *testing.T) {
 	}
 }
 
-// TestTypeOfCodeOfMessageOf checks the lookups through wrapping, foreign
-// wrappers, Join, untyped errors and nil.
 func TestTypeOfCodeOfMessageOf(t *testing.T) {
 	testCases := []struct {
 		name            string
@@ -142,8 +138,6 @@ func TestTypeOfCodeOfMessageOf(t *testing.T) {
 	}
 }
 
-// TestPredicates checks each Is function against a matching and a different
-// type.
 func TestPredicates(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -167,7 +161,6 @@ func TestPredicates(t *testing.T) {
 	}
 }
 
-// TestIsRetryable checks which types IsRetryable treats as retryable.
 func TestIsRetryable(t *testing.T) {
 	testCases := []struct {
 		name              string
@@ -199,8 +192,6 @@ func TestIsRetryable(t *testing.T) {
 	}
 }
 
-// TestWrap_KeepsDetailsButNotURL checks what Wrap and Wrapf carry over from
-// the cause.
 func TestWrap_KeepsDetailsButNotURL(t *testing.T) {
 	cause := New(TypeTooManyRequests, CodeTooManyRequests, "rate limited").
 		WithURL("https://signoz.io/docs/limits").
@@ -228,8 +219,6 @@ func TestWrap_KeepsDetailsButNotURL(t *testing.T) {
 	}
 }
 
-// TestWithAdditionalf checks that WithAdditionalf adds a detail to typed and
-// untyped errors.
 func TestWithAdditionalf(t *testing.T) {
 	testCases := []struct {
 		name                string
@@ -292,8 +281,6 @@ func TestWithAdditionalf(t *testing.T) {
 	}
 }
 
-// TestWithAdditionalf_Base_KeepsOriginalStacktrace checks that WithAdditionalf
-// keeps the stack of the typed error it wraps.
 func TestWithAdditionalf_Base_KeepsOriginalStacktrace(t *testing.T) {
 	original := New(TypeForbidden, MustNewCode("root_user"), "user is root")
 
@@ -302,8 +289,6 @@ func TestWithAdditionalf_Base_KeepsOriginalStacktrace(t *testing.T) {
 	assert.Equal(t, original.Stacktrace(), err.Stacktrace())
 }
 
-// TestStacktrace_StartsAtCaller checks that each constructor records the stack
-// from its caller.
 func TestStacktrace_StartsAtCaller(t *testing.T) {
 	testCases := []struct {
 		name string
@@ -323,7 +308,6 @@ func TestStacktrace_StartsAtCaller(t *testing.T) {
 	}
 }
 
-// TestAttr checks the attributes Attr logs for typed, untyped and nil errors.
 func TestAttr(t *testing.T) {
 	testCases := []struct {
 		name             string

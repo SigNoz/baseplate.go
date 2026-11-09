@@ -13,6 +13,7 @@ linters:
     - modernize
     - nilerr
     - noctx
+    - revive
     - testableexamples
   settings:
     depguard:
@@ -30,6 +31,12 @@ linters:
           msg: Do not use fmt.Errorf. Use github.com/SigNoz/baseplate.go/errors instead.
     godoclint:
       default: all
+      disable:
+        - require-doc
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
     godot:
       scope: all
       capital: true
