@@ -1,0 +1,380 @@
+package errors
+
+import (
+	"bytes"
+	"context"
+	"io/fs"
+	"log/slog"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+)
+
+type tWrapper struct{ cause error }
+
+func (w *tWrapper) Error() string {
+	return "wrapped by a library: " + w.cause.Error()
+}
+
+func (w *tWrapper) Unwrap() error {
+	return w.cause
+}
+
+func TestError(t *testing.T) {
+	testCases := []struct {
+		name            string
+		err             *Base
+		expectedError   string
+		expectedMessage string
+		expectedType    typ
+		expectedCode    Code
+	}{
+		{
+			name:            "New",
+			err:             New(TypeNotFound, CodeNotFound, "run not found"),
+			expectedError:   "run not found",
+			expectedMessage: "run not found",
+			expectedType:    TypeNotFound,
+			expectedCode:    CodeNotFound,
+		},
+		{
+			name:            "Newf",
+			err:             Newf(TypeConflict, MustNewCode("session_busy"), "session %q is busy", "sess_1"),
+			expectedError:   `session "sess_1" is busy`,
+			expectedMessage: `session "sess_1" is busy`,
+			expectedType:    TypeConflict,
+			expectedCode:    MustNewCode("session_busy"),
+		},
+		{
+			name:            "Wrap_AppendsCause",
+			err:             Wrap(New(TypeInternal, CodeInternal, "connection reset"), TypeUnavailable, CodeUnavailable, "cannot store event"),
+			expectedError:   "cannot store event: connection reset",
+			expectedMessage: "cannot store event",
+			expectedType:    TypeUnavailable,
+			expectedCode:    CodeUnavailable,
+		},
+		{
+			name:            "Wrapf_AppendsCause",
+			err:             Wrapf(fs.ErrNotExist, TypeInvalidInput, MustNewCode("SpecInvalid"), "spec %q", "spec.auth"),
+			expectedError:   `spec "spec.auth": file does not exist`,
+			expectedMessage: `spec "spec.auth"`,
+			expectedType:    TypeInvalidInput,
+			expectedCode:    MustNewCode("SpecInvalid"),
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			assert.Equal(t, testCase.expectedError, testCase.err.Error())
+			assert.Equal(t, testCase.expectedMessage, testCase.err.Message())
+			assert.Equal(t, testCase.expectedType, testCase.err.Type())
+			assert.Equal(t, testCase.expectedCode, testCase.err.Code())
+		})
+	}
+}
+
+func TestTypeOfCodeOf(t *testing.T) {
+	testCases := []struct {
+		name         string
+		err          error
+		expectedType typ
+		expectedCode Code
+	}{
+		{
+			name:         "Base",
+			err:          New(TypeForbidden, CodeForbidden, "push to main"),
+			expectedType: TypeForbidden,
+			expectedCode: CodeForbidden,
+		},
+		{
+			name:         "Wrapped_OutermostWins",
+			err:          Wrap(New(TypeNotFound, CodeNotFound, "no such branch"), TypeInternal, CodeInternal, "cannot clone"),
+			expectedType: TypeInternal,
+			expectedCode: CodeInternal,
+		},
+		{
+			name:         "ForeignWrapper_BaseInside",
+			err:          &tWrapper{cause: New(TypeTimeout, CodeTimeout, "query took too long")},
+			expectedType: TypeTimeout,
+			expectedCode: CodeTimeout,
+		},
+		{
+			name:         "Joined_FirstBase",
+			err:          Join(context.Canceled, New(TypeTooManyRequests, CodeTooManyRequests, "rate limited")),
+			expectedType: TypeTooManyRequests,
+			expectedCode: CodeTooManyRequests,
+		},
+		{
+			name:         "Foreign_Unknown",
+			err:          context.DeadlineExceeded,
+			expectedType: TypeUnknown,
+			expectedCode: CodeUnknown,
+		},
+		{
+			name:         "Nil_Unknown",
+			err:          nil,
+			expectedType: TypeUnknown,
+			expectedCode: CodeUnknown,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			assert.Equal(t, testCase.expectedType, TypeOf(testCase.err))
+			assert.Equal(t, testCase.expectedCode, CodeOf(testCase.err))
+			assert.True(t, Ast(testCase.err, testCase.expectedType))
+			assert.True(t, Asc(testCase.err, testCase.expectedCode))
+		})
+	}
+}
+
+func TestPredicates(t *testing.T) {
+	testCases := []struct {
+		name      string
+		predicate func(error) bool
+		match     typ
+		other     typ
+	}{
+		{name: "IsNotFound", predicate: IsNotFound, match: TypeNotFound, other: TypeInternal},
+		{name: "IsConflict", predicate: IsConflict, match: TypeConflict, other: TypeInvalidInput},
+		{name: "IsUnauthenticated", predicate: IsUnauthenticated, match: TypeUnauthenticated, other: TypeForbidden},
+		{name: "IsForbidden", predicate: IsForbidden, match: TypeForbidden, other: TypeUnauthenticated},
+		{name: "IsUnavailable", predicate: IsUnavailable, match: TypeUnavailable, other: TypeTimeout},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			assert.True(t, testCase.predicate(New(testCase.match, CodeUnknown, "matching")))
+			assert.False(t, testCase.predicate(New(testCase.other, CodeUnknown, "other")))
+			assert.False(t, testCase.predicate(nil))
+		})
+	}
+}
+
+func TestIsRetryable(t *testing.T) {
+	testCases := []struct {
+		name              string
+		err               error
+		expectedRetryable bool
+	}{
+		{name: "InvalidInput_No", err: New(TypeInvalidInput, CodeInvalidInput, "bad id"), expectedRetryable: false},
+		{name: "Unauthenticated_No", err: New(TypeUnauthenticated, CodeUnauthenticated, "no token"), expectedRetryable: false},
+		{name: "Forbidden_No", err: New(TypeForbidden, CodeForbidden, "read-only key"), expectedRetryable: false},
+		{name: "MethodNotAllowed_No", err: New(TypeMethodNotAllowed, CodeMethodNotAllowed, "PATCH on /runs"), expectedRetryable: false},
+		{name: "Conflict_No", err: New(TypeConflict, CodeConflict, "topic exists"), expectedRetryable: false},
+		{name: "LicenseUnavailable_No", err: New(TypeLicenseUnavailable, CodeLicenseUnavailable, "no license"), expectedRetryable: false},
+		{name: "Canceled_No", err: New(TypeCanceled, CodeCanceled, "client went away"), expectedRetryable: false},
+		{name: "Unsupported_No", err: New(TypeUnsupported, CodeUnsupported, "no sqlite"), expectedRetryable: false},
+		{name: "NotFound_Yes", err: New(TypeNotFound, CodeNotFound, "secret not created yet"), expectedRetryable: true},
+		{name: "TooManyRequests_Yes", err: New(TypeTooManyRequests, CodeTooManyRequests, "slow down"), expectedRetryable: true},
+		{name: "Timeout_Yes", err: New(TypeTimeout, CodeTimeout, "slow query"), expectedRetryable: true},
+		{name: "Unavailable_Yes", err: New(TypeUnavailable, CodeUnavailable, "endpoint unreachable"), expectedRetryable: true},
+		{name: "Internal_Yes", err: New(TypeInternal, CodeInternal, "disk full"), expectedRetryable: true},
+		{name: "Fatal_Yes", err: New(TypeFatal, CodeFatal, "panic"), expectedRetryable: true},
+		{name: "Foreign_Yes", err: context.DeadlineExceeded, expectedRetryable: true},
+		{name: "Nil_No", err: nil, expectedRetryable: false},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			assert.Equal(t, testCase.expectedRetryable, IsRetryable(testCase.err))
+		})
+	}
+}
+
+func TestWith_CopiesAndKeepsOriginal(t *testing.T) {
+	original := New(TypeInvalidInput, CodeInvalidInput, "invalid filter").WithAdditional("first")
+
+	changed := original.
+		WithURL("https://signoz.io/docs/filters").
+		WithAdditional("second", "third").
+		WithSuggestiveAdditional("unknown key servce", "did you mean: service").
+		WithSuggestions("narrow the time range").
+		WithRetryAfter(5 * time.Second)
+
+	assert.Equal(t, []Additional{{Message: "first"}}, original.Additionals())
+	assert.Empty(t, original.URL())
+	assert.Empty(t, original.Suggestions())
+	assert.Zero(t, original.RetryAfter())
+
+	assert.Equal(t, "https://signoz.io/docs/filters", changed.URL())
+	assert.Equal(t, []Additional{
+		{Message: "first"},
+		{Message: "second"},
+		{Message: "third"},
+		{Message: "unknown key servce", Suggestions: []string{"did you mean: service"}},
+	}, changed.Additionals())
+	assert.Equal(t, []string{"narrow the time range"}, changed.Suggestions())
+	assert.Equal(t, 5*time.Second, changed.RetryAfter())
+	assert.Equal(t, original.Stacktrace(), changed.Stacktrace())
+}
+
+func TestWith_SharedParent_NoAliasing(t *testing.T) {
+	parent := New(TypeInvalidInput, CodeInvalidInput, "invalid query").WithAdditional("a", "b")
+
+	left := parent.WithAdditional("left")
+	right := parent.WithAdditional("right")
+
+	assert.Equal(t, "left", left.Additionals()[2].Message)
+	assert.Equal(t, "right", right.Additionals()[2].Message)
+}
+
+func TestWrap_KeepsDetailsButNotURL(t *testing.T) {
+	cause := New(TypeTooManyRequests, CodeTooManyRequests, "rate limited").
+		WithURL("https://signoz.io/docs/limits").
+		WithSuggestiveAdditional("key servce", "did you mean: service").
+		WithSuggestions("retry later").
+		WithRetryAfter(time.Second)
+
+	testCases := []struct {
+		name string
+		err  *Base
+	}{
+		{name: "Wrap", err: Wrap(cause, TypeInternal, CodeInternal, "cannot query")},
+		{name: "Wrapf", err: Wrapf(cause, TypeInternal, CodeInternal, "cannot query %s", "logs")},
+		{name: "Wrap_ThroughForeignWrapper", err: Wrap(&tWrapper{cause: cause}, TypeInternal, CodeInternal, "cannot query")},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			assert.Equal(t, cause.Additionals(), testCase.err.Additionals())
+			assert.Equal(t, []string{"retry later"}, testCase.err.Suggestions())
+			assert.Equal(t, time.Second, testCase.err.RetryAfter())
+			assert.Equal(t, time.Second, RetryAfterOf(testCase.err))
+			assert.Empty(t, testCase.err.URL())
+		})
+	}
+}
+
+func TestWithAdditionalf(t *testing.T) {
+	tForeignWrapper := &tWrapper{cause: New(TypeNotFound, CodeNotFound, "user not found").WithAdditional("checked org o_1")}
+
+	testCases := []struct {
+		name                string
+		err                 error
+		expectedError       string
+		expectedMessage     string
+		expectedType        typ
+		expectedCode        Code
+		expectedAdditionals []Additional
+		expectedCause       error
+	}{
+		{
+			name:                "Base_AddsDetail",
+			err:                 New(TypeForbidden, MustNewCode("root_user"), "user is root").WithAdditional("a root user can't be changed"),
+			expectedError:       "user is root",
+			expectedMessage:     "user is root",
+			expectedType:        TypeForbidden,
+			expectedCode:        MustNewCode("root_user"),
+			expectedAdditionals: []Additional{{Message: "a root user can't be changed"}, {Message: "cannot delete user u_1"}},
+			expectedCause:       nil,
+		},
+		{
+			name:                "Foreign_Internal",
+			err:                 fs.ErrPermission,
+			expectedError:       "permission denied",
+			expectedMessage:     "permission denied",
+			expectedType:        TypeInternal,
+			expectedCode:        CodeInternal,
+			expectedAdditionals: []Additional{{Message: "cannot delete user u_1"}},
+			expectedCause:       fs.ErrPermission,
+		},
+		{
+			name:                "ForeignWrapper_InnerTypeAndDetails",
+			err:                 tForeignWrapper,
+			expectedError:       "wrapped by a library: user not found",
+			expectedMessage:     "wrapped by a library: user not found",
+			expectedType:        TypeNotFound,
+			expectedCode:        CodeNotFound,
+			expectedAdditionals: []Additional{{Message: "checked org o_1"}, {Message: "cannot delete user u_1"}},
+			expectedCause:       tForeignWrapper,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := WithAdditionalf(testCase.err, "cannot delete user %s", "u_1")
+
+			assert.Equal(t, testCase.expectedError, err.Error())
+			assert.Equal(t, testCase.expectedMessage, err.Message())
+			assert.Equal(t, testCase.expectedType, err.Type())
+			assert.Equal(t, testCase.expectedCode, err.Code())
+			assert.Equal(t, testCase.expectedAdditionals, err.Additionals())
+			assert.Equal(t, testCase.expectedCause, err.Unwrap())
+		})
+	}
+}
+
+func TestStacktrace_StartsAtCaller(t *testing.T) {
+	testCases := []struct {
+		name string
+		err  *Base
+	}{
+		{name: "New", err: New(TypeInternal, CodeInternal, "sandbox lost")},
+		{name: "Newf", err: Newf(TypeInternal, CodeInternal, "sandbox %s lost", "sb_1")},
+		{name: "Wrap", err: Wrap(context.Canceled, TypeCanceled, CodeCanceled, "run stopped")},
+		{name: "Wrapf", err: Wrapf(context.Canceled, TypeCanceled, CodeCanceled, "run %s stopped", "run_1")},
+		{name: "WithAdditionalf_Foreign", err: WithAdditionalf(context.Canceled, "run %s stopped", "run_1")},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			assert.True(t, strings.HasPrefix(testCase.err.Stacktrace(), "github.com/SigNoz/baseplate.go/errors.TestStacktrace_StartsAtCaller\n"), testCase.err.Stacktrace())
+		})
+	}
+}
+
+func TestWithStacktrace_Replaces(t *testing.T) {
+	err := New(TypeFatal, CodeFatal, "nil map write").WithStacktrace("goroutine 7 [running]:\nmain.handler()\n")
+
+	assert.Equal(t, "goroutine 7 [running]:\nmain.handler()\n", err.Stacktrace())
+}
+
+func TestAttr(t *testing.T) {
+	testCases := []struct {
+		name             string
+		err              error
+		expectedContains []string
+		expectedMissing  []string
+	}{
+		{
+			name: "Base_TypeCodeMessageStacktrace",
+			err:  Wrap(fs.ErrNotExist, TypeNotFound, MustNewCode("backup_missing"), "no backup of db_1"),
+			expectedContains: []string{
+				"exception.type=not-found",
+				"exception.code=backup_missing",
+				`exception.message="no backup of db_1: file does not exist"`,
+				`exception.stacktrace="github.com/SigNoz/baseplate.go/errors.TestAttr`,
+			},
+		},
+		{
+			name:             "Foreign_GoTypeAndMessage",
+			err:              context.DeadlineExceeded,
+			expectedContains: []string{"exception.type=context.deadlineExceededError", `exception.message="context deadline exceeded"`},
+			expectedMissing:  []string{"exception.code", "exception.stacktrace"},
+		},
+		{
+			name:            "Nil_Dropped",
+			err:             nil,
+			expectedMissing: []string{"exception"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			slog.New(slog.NewTextHandler(&buf, nil)).Error("cannot restore", Attr(testCase.err))
+
+			for _, expected := range testCase.expectedContains {
+				assert.Contains(t, buf.String(), expected)
+			}
+
+			for _, missing := range testCase.expectedMissing {
+				assert.NotContains(t, buf.String(), missing)
+			}
+		})
+	}
+}
