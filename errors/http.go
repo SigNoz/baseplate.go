@@ -33,9 +33,9 @@ type JSONRetry struct {
 	Delay time.Duration `json:"delay" required:"true" nullable:"false"` // In nanoseconds.
 }
 
-// AsJSON describes the first Base in err's chain. An error without one is TypeUnknown and CodeUnknown, with its full text as the message.
+// AsJSON describes the first typed error in err's chain. An untyped error is TypeUnknown and CodeUnknown, with its full text as the message.
 func AsJSON(err error) *JSON {
-	base, ok := errors.AsType[*Base](err)
+	b, ok := errors.AsType[*base](err)
 	if !ok {
 		return &JSON{
 			Type:        TypeUnknown.String(),
@@ -46,24 +46,24 @@ func AsJSON(err error) *JSON {
 		}
 	}
 
-	errs := make([]JSONAdditional, len(base.additionals))
-	for i, additional := range base.additionals {
+	errs := make([]JSONAdditional, len(b.additionals))
+	for i, additional := range b.additionals {
 		errs[i] = JSONAdditional{Message: additional.Message, Suggestions: nonNil(additional.Suggestions)}
 	}
 
 	var retry *JSONRetry
-	if base.retryAfter > 0 {
-		retry = &JSONRetry{Delay: base.retryAfter}
+	if b.retryAfter > 0 {
+		retry = &JSONRetry{Delay: b.retryAfter}
 	}
 
 	return &JSON{
-		Type:        base.t.String(),
-		Code:        base.c.String(),
-		Message:     base.Message(),
-		URL:         base.url,
+		Type:        b.t.String(),
+		Code:        b.c.String(),
+		Message:     b.Message(),
+		URL:         b.url,
 		Errors:      errs,
 		Retry:       retry,
-		Suggestions: nonNil(base.suggestions),
+		Suggestions: nonNil(b.suggestions),
 	}
 }
 
@@ -85,7 +85,7 @@ func AsURLValues(err error) url.Values {
 	return values
 }
 
-// HTTPStatus maps the type of the first Base in err's chain to a status code. Anything unmapped is 500.
+// HTTPStatus maps the type of the first typed error in err's chain to a status code. Anything unmapped is 500.
 func HTTPStatus(err error) int {
 	switch TypeOf(err) {
 	case TypeInvalidInput:

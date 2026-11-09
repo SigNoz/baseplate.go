@@ -1,7 +1,7 @@
 package errors
 
 var (
-	// TypeUnknown is the type of an error that carries no Base.
+	// TypeUnknown is the type of an untyped error.
 	TypeUnknown            = typ{"unknown"}
 	TypeInvalidInput       = typ{"invalid-input"}
 	TypeUnauthenticated    = typ{"unauthenticated"}

@@ -25,7 +25,7 @@ func (w *tWrapper) Unwrap() error {
 func TestError(t *testing.T) {
 	testCases := []struct {
 		name            string
-		err             *Base
+		err             *base
 		expectedError   string
 		expectedMessage string
 		expectedType    typ
@@ -75,48 +75,55 @@ func TestError(t *testing.T) {
 	}
 }
 
-func TestTypeOfCodeOf(t *testing.T) {
+func TestTypeOfCodeOfMessageOf(t *testing.T) {
 	testCases := []struct {
-		name         string
-		err          error
-		expectedType typ
-		expectedCode Code
+		name            string
+		err             error
+		expectedType    typ
+		expectedCode    Code
+		expectedMessage string
 	}{
 		{
-			name:         "Base",
-			err:          New(TypeForbidden, CodeForbidden, "push to main"),
-			expectedType: TypeForbidden,
-			expectedCode: CodeForbidden,
+			name:            "Typed",
+			err:             New(TypeForbidden, CodeForbidden, "push to main"),
+			expectedType:    TypeForbidden,
+			expectedCode:    CodeForbidden,
+			expectedMessage: "push to main",
 		},
 		{
-			name:         "Wrapped_OutermostWins",
-			err:          Wrap(New(TypeNotFound, CodeNotFound, "no such branch"), TypeInternal, CodeInternal, "cannot clone"),
-			expectedType: TypeInternal,
-			expectedCode: CodeInternal,
+			name:            "Wrapped_OutermostWins",
+			err:             Wrap(New(TypeNotFound, CodeNotFound, "no such branch"), TypeInternal, CodeInternal, "cannot clone"),
+			expectedType:    TypeInternal,
+			expectedCode:    CodeInternal,
+			expectedMessage: "cannot clone",
 		},
 		{
-			name:         "ForeignWrapper_BaseInside",
-			err:          &tWrapper{cause: New(TypeTimeout, CodeTimeout, "query took too long")},
-			expectedType: TypeTimeout,
-			expectedCode: CodeTimeout,
+			name:            "ForeignWrapper_BaseInside",
+			err:             &tWrapper{cause: New(TypeTimeout, CodeTimeout, "query took too long")},
+			expectedType:    TypeTimeout,
+			expectedCode:    CodeTimeout,
+			expectedMessage: "query took too long",
 		},
 		{
-			name:         "Joined_FirstBase",
-			err:          Join(context.Canceled, New(TypeTooManyRequests, CodeTooManyRequests, "rate limited")),
-			expectedType: TypeTooManyRequests,
-			expectedCode: CodeTooManyRequests,
+			name:            "Joined_FirstBase",
+			err:             Join(context.Canceled, New(TypeTooManyRequests, CodeTooManyRequests, "rate limited")),
+			expectedType:    TypeTooManyRequests,
+			expectedCode:    CodeTooManyRequests,
+			expectedMessage: "rate limited",
 		},
 		{
-			name:         "Foreign_Unknown",
-			err:          context.DeadlineExceeded,
-			expectedType: TypeUnknown,
-			expectedCode: CodeUnknown,
+			name:            "Foreign_Unknown",
+			err:             context.DeadlineExceeded,
+			expectedType:    TypeUnknown,
+			expectedCode:    CodeUnknown,
+			expectedMessage: "context deadline exceeded",
 		},
 		{
-			name:         "Nil_Unknown",
-			err:          nil,
-			expectedType: TypeUnknown,
-			expectedCode: CodeUnknown,
+			name:            "Nil_Unknown",
+			err:             nil,
+			expectedType:    TypeUnknown,
+			expectedCode:    CodeUnknown,
+			expectedMessage: "",
 		},
 	}
 
@@ -124,6 +131,7 @@ func TestTypeOfCodeOf(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			assert.Equal(t, testCase.expectedType, TypeOf(testCase.err))
 			assert.Equal(t, testCase.expectedCode, CodeOf(testCase.err))
+			assert.Equal(t, testCase.expectedMessage, MessageOf(testCase.err))
 			assert.True(t, Ast(testCase.err, testCase.expectedType))
 			assert.True(t, Asc(testCase.err, testCase.expectedCode))
 		})
@@ -193,7 +201,7 @@ func TestWrap_KeepsDetailsButNotURL(t *testing.T) {
 
 	testCases := []struct {
 		name string
-		err  *Base
+		err  *base
 	}{
 		{name: "Wrap", err: Wrap(cause, TypeInternal, CodeInternal, "cannot query")},
 		{name: "Wrapf", err: Wrapf(cause, TypeInternal, CodeInternal, "cannot query %s", "logs")},
@@ -284,7 +292,7 @@ func TestWithAdditionalf_Base_KeepsOriginalStacktrace(t *testing.T) {
 func TestStacktrace_StartsAtCaller(t *testing.T) {
 	testCases := []struct {
 		name string
-		err  *Base
+		err  *base
 	}{
 		{name: "New", err: New(TypeInternal, CodeInternal, "sandbox lost")},
 		{name: "Newf", err: Newf(TypeInternal, CodeInternal, "sandbox %s lost", "sb_1")},

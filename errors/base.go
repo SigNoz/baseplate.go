@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type Base struct {
+type base struct {
 	t           typ
 	c           Code
 	message     string
@@ -26,7 +26,7 @@ type Additional struct {
 }
 
 // An empty message, which only WithAdditionalf creates, shows the cause alone.
-func (b *Base) Error() string {
+func (b *base) Error() string {
 	switch {
 	case b.cause == nil:
 		return b.message
@@ -37,63 +37,63 @@ func (b *Base) Error() string {
 	return b.message + ": " + b.cause.Error()
 }
 
-func (b *Base) Type() typ {
+func (b *base) Type() typ {
 	return b.t
 }
 
-func (b *Base) Code() Code {
+func (b *base) Code() Code {
 	return b.c
 }
 
-// Message is the error's own message without its cause. Without one, it is the message of the first Base
+// Message is the error's own message without its cause. Without one, it is the message of the first typed error
 // in the cause's chain, or the cause's text when there is none.
-func (b *Base) Message() string {
+func (b *base) Message() string {
 	if b.message != "" || b.cause == nil {
 		return b.message
 	}
 
-	if inner, ok := errors.AsType[*Base](b.cause); ok {
+	if inner, ok := errors.AsType[*base](b.cause); ok {
 		return inner.Message()
 	}
 
 	return b.cause.Error()
 }
 
-func (b *Base) Unwrap() error {
+func (b *base) Unwrap() error {
 	return b.cause
 }
 
-func (b *Base) URL() string {
+func (b *base) URL() string {
 	return b.url
 }
 
-func (b *Base) Additionals() []Additional {
+func (b *base) Additionals() []Additional {
 	return slices.Clone(b.additionals)
 }
 
 // Suggestions relate to the error as a whole, while an Additional's suggestions relate to that detail.
-func (b *Base) Suggestions() []string {
+func (b *base) Suggestions() []string {
 	return slices.Clone(b.suggestions)
 }
 
 // RetryAfter is zero unless WithRetryAfter set it.
-func (b *Base) RetryAfter() time.Duration {
+func (b *base) RetryAfter() time.Duration {
 	return b.retryAfter
 }
 
 // Stacktrace is where the error was created, unless WithStacktrace replaced it.
-func (b *Base) Stacktrace() string {
+func (b *base) Stacktrace() string {
 	return b.s.String()
 }
 
-func (b *Base) WithURL(url string) *Base {
+func (b *base) WithURL(url string) *base {
 	copied := *b
 	copied.url = url
 
 	return &copied
 }
 
-func (b *Base) WithAdditional(messages ...string) *Base {
+func (b *base) WithAdditional(messages ...string) *base {
 	copied := *b
 	copied.additionals = slices.Clone(b.additionals)
 
@@ -104,7 +104,7 @@ func (b *Base) WithAdditional(messages ...string) *Base {
 	return &copied
 }
 
-func (b *Base) WithSuggestiveAdditional(message string, suggestions ...string) *Base {
+func (b *base) WithSuggestiveAdditional(message string, suggestions ...string) *base {
 	copied := *b
 	copied.additionals = append(slices.Clone(b.additionals), Additional{Message: message, Suggestions: slices.Clone(suggestions)})
 
@@ -112,14 +112,14 @@ func (b *Base) WithSuggestiveAdditional(message string, suggestions ...string) *
 }
 
 // WithSuggestions replaces the error's suggestions.
-func (b *Base) WithSuggestions(suggestions ...string) *Base {
+func (b *base) WithSuggestions(suggestions ...string) *base {
 	copied := *b
 	copied.suggestions = slices.Clone(suggestions)
 
 	return &copied
 }
 
-func (b *Base) WithRetryAfter(delay time.Duration) *Base {
+func (b *base) WithRetryAfter(delay time.Duration) *base {
 	copied := *b
 	copied.retryAfter = delay
 
@@ -127,7 +127,7 @@ func (b *Base) WithRetryAfter(delay time.Duration) *Base {
 }
 
 // WithStacktrace replaces the captured stack trace, for example with a recovered panic's runtime.Stack.
-func (b *Base) WithStacktrace(stacktrace string) *Base {
+func (b *base) WithStacktrace(stacktrace string) *base {
 	copied := *b
 	copied.s = rawStacktrace(stacktrace)
 
