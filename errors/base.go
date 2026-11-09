@@ -121,10 +121,10 @@ func (b *base) WithSuggestions(suggestions ...string) *base {
 
 // WithRetryAfter returns a copy of the error that tells the caller to retry
 // after delay. [AsException] includes it, and an HTTP handler can send it
-// as the Retry-After header.
+// as the Retry-After header. A delay of zero or less sets no delay.
 func (b *base) WithRetryAfter(delay time.Duration) *base {
 	copied := *b
-	copied.retryAfter = delay
+	copied.retryAfter = max(delay, 0)
 
 	return &copied
 }

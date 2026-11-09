@@ -55,3 +55,11 @@ func TestWithStacktrace_Replaces(t *testing.T) {
 
 	assert.Equal(t, "goroutine 7 [running]:\nmain.handler()\n", err.Stacktrace())
 }
+
+func TestWithRetryAfter_NegativeSetsNone(t *testing.T) {
+	err := New(TypeTooManyRequests, MustNewCode("rate_limited"), "slow down").WithRetryAfter(-time.Second)
+
+	assert.Zero(t, err.RetryAfter())
+	assert.Zero(t, RetryAfterOf(err))
+	assert.Nil(t, AsException(err).Retry)
+}
