@@ -9,11 +9,13 @@ import (
 )
 
 const (
-	// statusClientClosedRequest is nginx's non-standard status for a client that went away before the response.
+	// The statusClientClosedRequest code is nginx's non-standard status for a
+	// client that went away before the response.
 	statusClientClosedRequest int = 499
 )
 
-// JSON is the error body of an HTTP API response.
+// JSON is the error body of an HTTP API response, built by [AsJSON]. Errors
+// and Suggestions are never null.
 type JSON struct {
 	Type        string           `json:"type" required:"true" nullable:"false"`
 	Code        string           `json:"code" required:"true" nullable:"false"`
@@ -24,16 +26,22 @@ type JSON struct {
 	Suggestions []string         `json:"suggestions" required:"true" nullable:"false"`
 }
 
+// JSONAdditional is one detail of a [JSON] error body.
 type JSONAdditional struct {
 	Message     string   `json:"message" required:"true" nullable:"false"`
 	Suggestions []string `json:"suggestions" required:"true" nullable:"false"`
 }
 
+// JSONRetry tells the client when to retry, and is set only when the error has
+// a retry delay.
 type JSONRetry struct {
 	Delay time.Duration `json:"delay" required:"true" nullable:"false"` // In nanoseconds.
 }
 
-// AsJSON describes the first typed error in err's chain. An untyped error is TypeUnknown and CodeUnknown, with its full text as the message.
+// AsJSON returns the error body for err, built from the first typed error in
+// its chain. The message is that error's own message without its cause, so
+// wrapped causes don't reach the client. An untyped err has TypeUnknown,
+// CodeUnknown and its full text as the message. Don't pass a nil err.
 func AsJSON(err error) *JSON {
 	b, ok := errors.AsType[*base](err)
 	if !ok {
@@ -67,7 +75,9 @@ func AsJSON(err error) *JSON {
 	}
 }
 
-// AsURLValues carries the code, message, url and the additionals as JSON in errors, for a redirect's query string.
+// AsURLValues returns err's code, message and url, and its details as a JSON
+// array under errors, for the query string of a redirect that reports an
+// error. It reads err the way [AsJSON] does.
 func AsURLValues(err error) url.Values {
 	body := AsJSON(err)
 
@@ -85,7 +95,23 @@ func AsURLValues(err error) url.Values {
 	return values
 }
 
-// HTTPStatus maps the type of the first typed error in err's chain to a status code. Anything unmapped is 500.
+// HTTPStatus returns the HTTP status code for the type of the first typed
+// error in err's chain:
+//
+//	TypeInvalidInput        400 Bad Request
+//	TypeUnauthenticated     401 Unauthorized
+//	TypeForbidden           403 Forbidden
+//	TypeNotFound            404 Not Found
+//	TypeMethodNotAllowed    405 Method Not Allowed
+//	TypeConflict            409 Conflict
+//	TypeTooManyRequests     429 Too Many Requests
+//	TypeLicenseUnavailable  451 Unavailable For Legal Reasons
+//	TypeCanceled            499 Client Closed Request (nginx)
+//	TypeUnsupported         501 Not Implemented
+//	TypeUnavailable         503 Service Unavailable
+//	TypeTimeout             504 Gateway Timeout
+//
+// Every other type, and an untyped error, is 500 Internal Server Error.
 func HTTPStatus(err error) int {
 	switch TypeOf(err) {
 	case TypeInvalidInput:
@@ -117,7 +143,10 @@ func HTTPStatus(err error) int {
 	return http.StatusInternalServerError
 }
 
-// TypeFromHTTPStatus is HTTPStatus in reverse, for errors read from a response. An unmapped 5xx is TypeInternal, anything else unmapped TypeUnknown.
+// TypeFromHTTPStatus returns the type for an HTTP status code, the reverse of
+// [HTTPStatus], for building an error from another service's response. An
+// unmapped 5xx status is TypeInternal, and any other unmapped status is
+// TypeUnknown.
 func TypeFromHTTPStatus(status int) typ {
 	switch status {
 	case http.StatusBadRequest:

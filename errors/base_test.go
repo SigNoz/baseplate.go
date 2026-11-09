@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestWith_CopiesAndKeepsOriginal checks that the With methods return a
+// changed copy and leave the original as it was.
 func TestWith_CopiesAndKeepsOriginal(t *testing.T) {
 	original := New(TypeInvalidInput, CodeInvalidInput, "invalid filter").WithAdditional("first")
 
@@ -34,6 +36,8 @@ func TestWith_CopiesAndKeepsOriginal(t *testing.T) {
 	assert.Equal(t, original.Stacktrace(), changed.Stacktrace())
 }
 
+// TestWith_SharedParent_NoAliasing checks that copies made from the same error
+// don't share their details.
 func TestWith_SharedParent_NoAliasing(t *testing.T) {
 	parent := New(TypeInvalidInput, CodeInvalidInput, "invalid query").WithAdditional("a", "b")
 
@@ -44,6 +48,8 @@ func TestWith_SharedParent_NoAliasing(t *testing.T) {
 	assert.Equal(t, "right", right.Additionals()[2].Message)
 }
 
+// TestWithStacktrace_Replaces checks that WithStacktrace replaces the recorded
+// stack.
 func TestWithStacktrace_Replaces(t *testing.T) {
 	err := New(TypeFatal, CodeFatal, "nil map write").WithStacktrace("goroutine 7 [running]:\nmain.handler()\n")
 

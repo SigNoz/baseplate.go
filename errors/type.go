@@ -1,7 +1,10 @@
 package errors
 
+// The types of an error, one per thing a caller can do about it. [HTTPStatus]
+// maps each to a status code.
 var (
-	// TypeUnknown is the type of an untyped error.
+	// TypeUnknown is what [TypeOf] returns for an untyped error. Don't create
+	// errors with it.
 	TypeUnknown            = typ{"unknown"}
 	TypeInvalidInput       = typ{"invalid-input"}
 	TypeUnauthenticated    = typ{"unauthenticated"}
@@ -22,11 +25,13 @@ var (
 
 type typ struct{ s string }
 
+// String returns the type's name in kebab-case, such as "not-found".
 func (t typ) String() string {
 	return t.s
 }
 
-// A retry can't fix these without a change to the request, the credentials or the system.
+// A retry can't fix these without a change to the request, the credentials or
+// the system.
 func (t typ) retryable() bool {
 	switch t {
 	case TypeInvalidInput, TypeUnauthenticated, TypeForbidden, TypeMethodNotAllowed, TypeConflict, TypeLicenseUnavailable, TypeCanceled, TypeUnsupported:

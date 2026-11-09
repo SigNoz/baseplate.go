@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestAsJSON checks the error body AsJSON builds.
 func TestAsJSON(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -56,6 +57,7 @@ func TestAsJSON(t *testing.T) {
 	}
 }
 
+// TestAsURLValues checks the query values AsURLValues builds.
 func TestAsURLValues(t *testing.T) {
 	values := AsURLValues(New(TypeUnauthenticated, MustNewCode("sso_failed"), "sign-in failed").WithURL("https://signoz.io/docs/sso").WithAdditional("state expired"))
 
@@ -65,6 +67,8 @@ func TestAsURLValues(t *testing.T) {
 	assert.JSONEq(t, `[{"message":"state expired","suggestions":[]}]`, values.Get("errors"))
 }
 
+// TestHTTPStatus_TypeFromHTTPStatus checks the status of each type, and that
+// TypeFromHTTPStatus maps it back.
 func TestHTTPStatus_TypeFromHTTPStatus(t *testing.T) {
 	testCases := []struct {
 		name           string
@@ -99,10 +103,14 @@ func TestHTTPStatus_TypeFromHTTPStatus(t *testing.T) {
 	}
 }
 
+// TestHTTPStatus_Foreign_InternalServerError checks that an untyped error is
+// 500.
 func TestHTTPStatus_Foreign_InternalServerError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, HTTPStatus(context.DeadlineExceeded))
 }
 
+// TestTypeFromHTTPStatus_Unmapped checks the types of statuses HTTPStatus
+// never returns.
 func TestTypeFromHTTPStatus_Unmapped(t *testing.T) {
 	testCases := []struct {
 		name         string

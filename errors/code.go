@@ -4,7 +4,10 @@ import (
 	"regexp"
 )
 
+// The generic codes, one for each type. Use them when a caller has nothing
+// finer to tell apart.
 var (
+	// CodeUnknown is what [CodeOf] returns for an untyped error.
 	CodeUnknown            = Code{"unknown"}
 	CodeInvalidInput       = Code{"invalid_input"}
 	CodeUnauthenticated    = Code{"unauthenticated"}
@@ -26,10 +29,14 @@ var (
 	codeRegexp = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)
 )
 
-// Code identifies one failure for machines, more finely than its type.
+// Code identifies one failure for machines, more finely than its type, such as
+// "license_unavailable" or "SecretNotFound". Build one with [NewCode] or
+// [MustNewCode], and compare codes with ==.
 type Code struct{ s string }
 
-// NewCode accepts snake_case and CamelCase, so each repo keeps its own convention.
+// NewCode returns the code s. It accepts a letter followed by letters, digits
+// and underscores, so both snake_case and CamelCase work, and returns a
+// TypeInvalidInput error for anything else.
 func NewCode(s string) (Code, error) {
 	if !codeRegexp.MatchString(s) {
 		return Code{}, Newf(TypeInvalidInput, CodeInvalidInput, "code %q is invalid, expected a letter followed by letters, digits or underscores", s)
@@ -38,7 +45,8 @@ func NewCode(s string) (Code, error) {
 	return Code{s: s}, nil
 }
 
-// MustNewCode panics on an invalid code, so it belongs in package-level vars.
+// MustNewCode is [NewCode] that panics on an invalid code, for declaring codes
+// in package-level vars.
 func MustNewCode(s string) Code {
 	code, err := NewCode(s)
 	if err != nil {
@@ -48,6 +56,7 @@ func MustNewCode(s string) Code {
 	return code
 }
 
+// String returns the code as it was declared.
 func (c Code) String() string {
 	return c.s
 }

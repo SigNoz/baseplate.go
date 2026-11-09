@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNewCode checks which code formats NewCode accepts.
 func TestNewCode(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -41,6 +42,8 @@ func TestNewCode(t *testing.T) {
 	}
 }
 
+// TestMustNewCode_InvalidPanics checks that MustNewCode panics on an invalid
+// code.
 func TestMustNewCode_InvalidPanics(t *testing.T) {
 	assert.Panics(t, func() { MustNewCode("bad code") })
 }
