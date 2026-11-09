@@ -5,6 +5,7 @@ import (
 	"context"
 	"io/fs"
 	"log/slog"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -28,16 +29,16 @@ func TestError(t *testing.T) {
 		err             *base
 		expectedError   string
 		expectedMessage string
-		expectedType    typ
+		expectedType    Type
 		expectedCode    Code
 	}{
 		{
 			name:            "New",
-			err:             New(TypeNotFound, CodeNotFound, "run not found"),
+			err:             New(TypeNotFound, MustNewCode("not_found"), "run not found"),
 			expectedError:   "run not found",
 			expectedMessage: "run not found",
 			expectedType:    TypeNotFound,
-			expectedCode:    CodeNotFound,
+			expectedCode:    MustNewCode("not_found"),
 		},
 		{
 			name:            "Newf",
@@ -49,11 +50,11 @@ func TestError(t *testing.T) {
 		},
 		{
 			name:            "Wrap_AppendsCause",
-			err:             Wrap(New(TypeInternal, CodeInternal, "connection reset"), TypeUnavailable, CodeUnavailable, "cannot store event"),
+			err:             Wrap(New(TypeInternal, MustNewCode("internal"), "connection reset"), TypeUnavailable, MustNewCode("unavailable"), "cannot store event"),
 			expectedError:   "cannot store event: connection reset",
 			expectedMessage: "cannot store event",
 			expectedType:    TypeUnavailable,
-			expectedCode:    CodeUnavailable,
+			expectedCode:    MustNewCode("unavailable"),
 		},
 		{
 			name:            "Wrapf_AppendsCause",
@@ -79,36 +80,36 @@ func TestTypeOfCodeOfMessageOf(t *testing.T) {
 	testCases := []struct {
 		name            string
 		err             error
-		expectedType    typ
+		expectedType    Type
 		expectedCode    Code
 		expectedMessage string
 	}{
 		{
 			name:            "Typed",
-			err:             New(TypeForbidden, CodeForbidden, "push to main"),
+			err:             New(TypeForbidden, MustNewCode("forbidden"), "push to main"),
 			expectedType:    TypeForbidden,
-			expectedCode:    CodeForbidden,
+			expectedCode:    MustNewCode("forbidden"),
 			expectedMessage: "push to main",
 		},
 		{
 			name:            "Wrapped_OutermostWins",
-			err:             Wrap(New(TypeNotFound, CodeNotFound, "no such branch"), TypeInternal, CodeInternal, "cannot clone"),
+			err:             Wrap(New(TypeNotFound, MustNewCode("not_found"), "no such branch"), TypeInternal, MustNewCode("internal"), "cannot clone"),
 			expectedType:    TypeInternal,
-			expectedCode:    CodeInternal,
+			expectedCode:    MustNewCode("internal"),
 			expectedMessage: "cannot clone",
 		},
 		{
 			name:            "ForeignWrapper_BaseInside",
-			err:             &tWrapper{cause: New(TypeTimeout, CodeTimeout, "query took too long")},
+			err:             &tWrapper{cause: New(TypeTimeout, MustNewCode("timeout"), "query took too long")},
 			expectedType:    TypeTimeout,
-			expectedCode:    CodeTimeout,
+			expectedCode:    MustNewCode("timeout"),
 			expectedMessage: "query took too long",
 		},
 		{
 			name:            "Joined_FirstBase",
-			err:             Join(context.Canceled, New(TypeTooManyRequests, CodeTooManyRequests, "rate limited")),
+			err:             Join(context.Canceled, New(TypeTooManyRequests, MustNewCode("too_many_requests"), "rate limited")),
 			expectedType:    TypeTooManyRequests,
-			expectedCode:    CodeTooManyRequests,
+			expectedCode:    MustNewCode("too_many_requests"),
 			expectedMessage: "rate limited",
 		},
 		{
@@ -142,8 +143,8 @@ func TestPredicates(t *testing.T) {
 	testCases := []struct {
 		name      string
 		predicate func(error) bool
-		match     typ
-		other     typ
+		match     Type
+		other     Type
 	}{
 		{name: "IsNotFound", predicate: IsNotFound, match: TypeNotFound, other: TypeInternal},
 		{name: "IsConflict", predicate: IsConflict, match: TypeConflict, other: TypeInvalidInput},
@@ -167,20 +168,21 @@ func TestIsRetryable(t *testing.T) {
 		err               error
 		expectedRetryable bool
 	}{
-		{name: "InvalidInput_No", err: New(TypeInvalidInput, CodeInvalidInput, "bad id"), expectedRetryable: false},
-		{name: "Unauthenticated_No", err: New(TypeUnauthenticated, CodeUnauthenticated, "no token"), expectedRetryable: false},
-		{name: "Forbidden_No", err: New(TypeForbidden, CodeForbidden, "read-only key"), expectedRetryable: false},
-		{name: "MethodNotAllowed_No", err: New(TypeMethodNotAllowed, CodeMethodNotAllowed, "PATCH on /runs"), expectedRetryable: false},
-		{name: "Conflict_No", err: New(TypeConflict, CodeConflict, "topic exists"), expectedRetryable: false},
-		{name: "LicenseUnavailable_No", err: New(TypeLicenseUnavailable, CodeLicenseUnavailable, "no license"), expectedRetryable: false},
-		{name: "Canceled_No", err: New(TypeCanceled, CodeCanceled, "client went away"), expectedRetryable: false},
-		{name: "Unsupported_No", err: New(TypeUnsupported, CodeUnsupported, "no sqlite"), expectedRetryable: false},
-		{name: "NotFound_Yes", err: New(TypeNotFound, CodeNotFound, "secret not created yet"), expectedRetryable: true},
-		{name: "TooManyRequests_Yes", err: New(TypeTooManyRequests, CodeTooManyRequests, "slow down"), expectedRetryable: true},
-		{name: "Timeout_Yes", err: New(TypeTimeout, CodeTimeout, "slow query"), expectedRetryable: true},
-		{name: "Unavailable_Yes", err: New(TypeUnavailable, CodeUnavailable, "endpoint unreachable"), expectedRetryable: true},
-		{name: "Internal_Yes", err: New(TypeInternal, CodeInternal, "disk full"), expectedRetryable: true},
-		{name: "Fatal_Yes", err: New(TypeFatal, CodeFatal, "panic"), expectedRetryable: true},
+		{name: "InvalidInput_No", err: New(TypeInvalidInput, MustNewCode("invalid_input"), "bad id"), expectedRetryable: false},
+		{name: "Unauthenticated_No", err: New(TypeUnauthenticated, MustNewCode("unauthenticated"), "no token"), expectedRetryable: false},
+		{name: "Forbidden_No", err: New(TypeForbidden, MustNewCode("forbidden"), "read-only key"), expectedRetryable: false},
+		{name: "MethodNotAllowed_No", err: New(TypeMethodNotAllowed, MustNewCode("method_not_allowed"), "PATCH on /runs"), expectedRetryable: false},
+		{name: "Conflict_No", err: New(TypeConflict, MustNewCode("conflict"), "topic exists"), expectedRetryable: false},
+		{name: "OwnType_NotRetryable_No", err: New(MustNewType("license-unavailable", http.StatusUnavailableForLegalReasons, false), MustNewCode("license_expired"), "no license"), expectedRetryable: false},
+		{name: "OwnType_Retryable_Yes", err: New(MustNewType("quota-exceeded", http.StatusTooManyRequests, true), MustNewCode("quota_exceeded"), "over quota"), expectedRetryable: true},
+		{name: "Canceled_No", err: New(TypeCanceled, MustNewCode("canceled"), "client went away"), expectedRetryable: false},
+		{name: "Unsupported_No", err: New(TypeUnsupported, MustNewCode("unsupported"), "no sqlite"), expectedRetryable: false},
+		{name: "NotFound_Yes", err: New(TypeNotFound, MustNewCode("not_found"), "secret not created yet"), expectedRetryable: true},
+		{name: "TooManyRequests_Yes", err: New(TypeTooManyRequests, MustNewCode("too_many_requests"), "slow down"), expectedRetryable: true},
+		{name: "Timeout_Yes", err: New(TypeTimeout, MustNewCode("timeout"), "slow query"), expectedRetryable: true},
+		{name: "Unavailable_Yes", err: New(TypeUnavailable, MustNewCode("unavailable"), "endpoint unreachable"), expectedRetryable: true},
+		{name: "Internal_Yes", err: New(TypeInternal, MustNewCode("internal"), "disk full"), expectedRetryable: true},
+		{name: "Fatal_Yes", err: New(TypeFatal, MustNewCode("fatal"), "panic"), expectedRetryable: true},
 		{name: "Foreign_Yes", err: context.DeadlineExceeded, expectedRetryable: true},
 		{name: "Nil_No", err: nil, expectedRetryable: false},
 	}
@@ -193,9 +195,9 @@ func TestIsRetryable(t *testing.T) {
 }
 
 func TestWrap_KeepsDetailsButNotURL(t *testing.T) {
-	cause := New(TypeTooManyRequests, CodeTooManyRequests, "rate limited").
+	cause := New(TypeTooManyRequests, MustNewCode("too_many_requests"), "rate limited").
 		WithURL("https://signoz.io/docs/limits").
-		WithSuggestiveAdditional("key servce", "did you mean: service").
+		WithAdditional("key servce", "did you mean: service").
 		WithSuggestions("retry later").
 		WithRetryAfter(time.Second)
 
@@ -203,9 +205,9 @@ func TestWrap_KeepsDetailsButNotURL(t *testing.T) {
 		name string
 		err  *base
 	}{
-		{name: "Wrap", err: Wrap(cause, TypeInternal, CodeInternal, "cannot query")},
-		{name: "Wrapf", err: Wrapf(cause, TypeInternal, CodeInternal, "cannot query %s", "logs")},
-		{name: "Wrap_ThroughForeignWrapper", err: Wrap(&tWrapper{cause: cause}, TypeInternal, CodeInternal, "cannot query")},
+		{name: "Wrap", err: Wrap(cause, TypeInternal, MustNewCode("internal"), "cannot query")},
+		{name: "Wrapf", err: Wrapf(cause, TypeInternal, MustNewCode("internal"), "cannot query %s", "logs")},
+		{name: "Wrap_ThroughForeignWrapper", err: Wrap(&tWrapper{cause: cause}, TypeInternal, MustNewCode("internal"), "cannot query")},
 	}
 
 	for _, testCase := range testCases {
@@ -225,7 +227,7 @@ func TestWithAdditionalf(t *testing.T) {
 		err                 error
 		expectedError       string
 		expectedMessage     string
-		expectedType        typ
+		expectedType        Type
 		expectedCode        Code
 		expectedAdditionals []Additional
 	}{
@@ -248,21 +250,21 @@ func TestWithAdditionalf(t *testing.T) {
 			expectedAdditionals: []Additional{{Message: "cannot delete user u_1"}},
 		},
 		{
-			name:                "Foreign_Internal",
+			name:                "Foreign_InternalUnknown",
 			err:                 fs.ErrPermission,
 			expectedError:       "permission denied",
 			expectedMessage:     "permission denied",
 			expectedType:        TypeInternal,
-			expectedCode:        CodeInternal,
+			expectedCode:        CodeUnknown,
 			expectedAdditionals: []Additional{{Message: "cannot delete user u_1"}},
 		},
 		{
 			name:                "ForeignWrapper_InnerTypeMessageAndDetails",
-			err:                 &tWrapper{cause: New(TypeNotFound, CodeNotFound, "user not found").WithAdditional("checked org o_1")},
+			err:                 &tWrapper{cause: New(TypeNotFound, MustNewCode("not_found"), "user not found").WithAdditional("checked org o_1")},
 			expectedError:       "wrapped by a library: user not found",
 			expectedMessage:     "user not found",
 			expectedType:        TypeNotFound,
-			expectedCode:        CodeNotFound,
+			expectedCode:        MustNewCode("not_found"),
 			expectedAdditionals: []Additional{{Message: "checked org o_1"}, {Message: "cannot delete user u_1"}},
 		},
 	}
@@ -286,8 +288,8 @@ func TestWithAdditionalf_KeepsURL(t *testing.T) {
 		name string
 		err  error
 	}{
-		{name: "Typed", err: New(TypeForbidden, CodeForbidden, "user is root").WithURL("https://signoz.io/docs/users")},
-		{name: "ForeignWrapper", err: &tWrapper{cause: New(TypeForbidden, CodeForbidden, "user is root").WithURL("https://signoz.io/docs/users")}},
+		{name: "Typed", err: New(TypeForbidden, MustNewCode("forbidden"), "user is root").WithURL("https://signoz.io/docs/users")},
+		{name: "ForeignWrapper", err: &tWrapper{cause: New(TypeForbidden, MustNewCode("forbidden"), "user is root").WithURL("https://signoz.io/docs/users")}},
 	}
 
 	for _, testCase := range testCases {
@@ -313,10 +315,10 @@ func TestStacktrace_StartsAtCaller(t *testing.T) {
 		name string
 		err  *base
 	}{
-		{name: "New", err: New(TypeInternal, CodeInternal, "sandbox lost")},
-		{name: "Newf", err: Newf(TypeInternal, CodeInternal, "sandbox %s lost", "sb_1")},
-		{name: "Wrap", err: Wrap(context.Canceled, TypeCanceled, CodeCanceled, "run stopped")},
-		{name: "Wrapf", err: Wrapf(context.Canceled, TypeCanceled, CodeCanceled, "run %s stopped", "run_1")},
+		{name: "New", err: New(TypeInternal, MustNewCode("internal"), "sandbox lost")},
+		{name: "Newf", err: Newf(TypeInternal, MustNewCode("internal"), "sandbox %s lost", "sb_1")},
+		{name: "Wrap", err: Wrap(context.Canceled, TypeCanceled, MustNewCode("canceled"), "run stopped")},
+		{name: "Wrapf", err: Wrapf(context.Canceled, TypeCanceled, MustNewCode("canceled"), "run %s stopped", "run_1")},
 		{name: "WithAdditionalf_Foreign", err: WithAdditionalf(context.Canceled, "run %s stopped", "run_1")},
 	}
 

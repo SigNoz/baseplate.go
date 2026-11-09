@@ -9,12 +9,12 @@ import (
 )
 
 func TestWith_CopiesAndKeepsOriginal(t *testing.T) {
-	original := New(TypeInvalidInput, CodeInvalidInput, "invalid filter").WithAdditional("first")
+	original := New(TypeInvalidInput, MustNewCode("invalid_input"), "invalid filter").WithAdditional("first")
 
 	changed := original.
 		WithURL("https://signoz.io/docs/filters").
-		WithAdditional("second", "third").
-		WithSuggestiveAdditional("unknown key servce", "did you mean: service").
+		WithAdditional("second").WithAdditional("third").
+		WithAdditional("unknown key servce", "did you mean: service").
 		WithSuggestions("narrow the time range").
 		WithRetryAfter(5 * time.Second)
 
@@ -36,7 +36,7 @@ func TestWith_CopiesAndKeepsOriginal(t *testing.T) {
 }
 
 func TestWith_SharedParent_NoAliasing(t *testing.T) {
-	parent := New(TypeInvalidInput, CodeInvalidInput, "invalid query").WithAdditional("a", "b")
+	parent := New(TypeInvalidInput, MustNewCode("invalid_input"), "invalid query").WithAdditional("a").WithAdditional("b")
 
 	left := parent.WithAdditional("left")
 	right := parent.WithAdditional("right")
@@ -51,7 +51,7 @@ func TestWith_SharedParent_NoAliasing(t *testing.T) {
 }
 
 func TestAdditionals_ReturnsDeepCopy(t *testing.T) {
-	err := New(TypeInvalidInput, CodeInvalidInput, "invalid filter").WithSuggestiveAdditional("key servce", "did you mean: service")
+	err := New(TypeInvalidInput, MustNewCode("invalid_input"), "invalid filter").WithAdditional("key servce", "did you mean: service")
 
 	additionals := err.Additionals()
 	require.Len(t, additionals, 1)
@@ -64,7 +64,7 @@ func TestAdditionals_ReturnsDeepCopy(t *testing.T) {
 }
 
 func TestWithStacktrace_Replaces(t *testing.T) {
-	err := New(TypeFatal, CodeFatal, "nil map write").WithStacktrace("goroutine 7 [running]:\nmain.handler()\n")
+	err := New(TypeFatal, MustNewCode("fatal"), "nil map write").WithStacktrace("goroutine 7 [running]:\nmain.handler()\n")
 
 	assert.Equal(t, "goroutine 7 [running]:\nmain.handler()\n", err.Stacktrace())
 }

@@ -2,28 +2,31 @@
 // library's errors package and [fmt.Errorf] in a codebase: [Is], [As], [AsType]
 // and [Join] call the standard library, so callers import only this package.
 //
-// Every error has a type, which says what the caller can do about it, a
-// [Code], which identifies the failure more finely, and a message. It records
-// the stack where it was created.
+// Every error has a [Type], which says what the caller can do about it, a
+// [Code], which identifies the failure, and a message. It records the stack
+// where it was created.
 //
 //	if id == "" {
-//		return errors.New(errors.TypeInvalidInput, errors.CodeInvalidInput, "id is required")
+//		return errors.New(errors.TypeInvalidInput, CodeRunIDMissing, "id is required")
 //	}
 //
 //	rows, err := db.QueryContext(ctx, query)
 //	if err != nil {
-//		return errors.Wrapf(err, errors.TypeInternal, errors.CodeInternal, "list runs of %s", orgID)
+//		return errors.Wrapf(err, errors.TypeInternal, CodeRunsListFailed, "list runs of %s", orgID)
 //	}
 //
 // # Types and codes
 //
 // Pick the type for what the caller can do: TypeInvalidInput for bad input,
 // TypeNotFound for something that doesn't exist, TypeInternal for a dependency
-// that failed, and so on. Each type has a generic code of the same name, such
-// as CodeInvalidInput. Declare a package's own codes with [MustNewCode] when
-// callers need to tell failures of the same type apart:
+// that failed, and so on. A type carries the HTTP status and retryability
+// that [HTTPStatus] and [IsRetryable] report. A package declares types of its
+// own with [MustNewType], and the codes of its errors with [MustNewCode]:
 //
-//	var CodeLicenseExpired = errors.MustNewCode("license_expired")
+//	var (
+//		TypeLicenseUnavailable = errors.MustNewType("license-unavailable", http.StatusUnavailableForLegalReasons, false)
+//		CodeLicenseExpired     = errors.MustNewCode("license_expired")
+//	)
 //
 // Don't declare sentinel errors. An error created at init has a useless stack
 // trace. Return a fresh error and branch on its type or code instead, with
@@ -47,8 +50,8 @@
 // the original unchanged:
 //
 //   - WithURL sets a documentation URL.
-//   - WithAdditional and WithSuggestiveAdditional add details, such as one
-//     per invalid field, with suggestions of their own.
+//   - WithAdditional adds a detail, such as one per invalid field, with
+//     suggestions of its own.
 //   - WithSuggestions sets suggestions for the error as a whole.
 //   - WithRetryAfter sets how long the client should wait before retrying.
 //   - WithStacktrace replaces the recorded stack, such as with the stack of a

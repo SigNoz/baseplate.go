@@ -8,15 +8,15 @@ import (
 )
 
 type base struct {
-	t           typ
-	c           Code
+	typ         Type
+	code        Code
 	message     string
 	cause       error
 	url         string
 	additionals []Additional
 	suggestions []string
 	retryAfter  time.Duration
-	s           fmt.Stringer
+	stacktrace  fmt.Stringer
 }
 
 // Additional is one detail of an error, such as one invalid field of a
@@ -41,19 +41,19 @@ func (b *base) Error() string {
 }
 
 // Type returns the error's type.
-func (b *base) Type() typ {
-	return b.t
+func (b *base) Type() Type {
+	return b.typ
 }
 
 // Code returns the error's code.
 func (b *base) Code() Code {
-	return b.c
+	return b.code
 }
 
 // Message returns the error's own message without its cause, which is what an
 // API response shows. An error with no message of its own returns the message
-// of the first typed error in its cause's chain, or the cause's text when
-// there is none.
+// of the first typed error in its cause's chain, or the cause's text when there
+// is none.
 func (b *base) Message() string {
 	if b.message != "" || b.cause == nil {
 		return b.message
@@ -102,7 +102,7 @@ func (b *base) RetryAfter() time.Duration {
 // Stacktrace returns the stack where the error was created, one function and
 // file:line pair per frame, or the stack set by WithStacktrace.
 func (b *base) Stacktrace() string {
-	return b.s.String()
+	return b.stacktrace.String()
 }
 
 // WithURL returns a copy of the error with a documentation URL for the
@@ -114,22 +114,9 @@ func (b *base) WithURL(url string) *base {
 	return &copied
 }
 
-// WithAdditional returns a copy of the error with a detail added for each
-// message.
-func (b *base) WithAdditional(messages ...string) *base {
-	copied := *b
-	copied.additionals = slices.Clone(b.additionals)
-
-	for _, message := range messages {
-		copied.additionals = append(copied.additionals, Additional{Message: message})
-	}
-
-	return &copied
-}
-
-// WithSuggestiveAdditional returns a copy of the error with a detail added
-// that carries its own suggestions.
-func (b *base) WithSuggestiveAdditional(message string, suggestions ...string) *base {
+// WithAdditional returns a copy of the error with a detail added, along with
+// the suggestions that relate to that detail alone.
+func (b *base) WithAdditional(message string, suggestions ...string) *base {
 	copied := *b
 	copied.additionals = append(slices.Clone(b.additionals), Additional{Message: message, Suggestions: slices.Clone(suggestions)})
 
@@ -159,7 +146,7 @@ func (b *base) WithRetryAfter(delay time.Duration) *base {
 // stacktrace, such as the stack of a recovered panic from [runtime.Stack].
 func (b *base) WithStacktrace(stacktrace string) *base {
 	copied := *b
-	copied.s = rawStacktrace(stacktrace)
+	copied.stacktrace = rawStacktrace(stacktrace)
 
 	return &copied
 }

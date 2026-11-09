@@ -18,24 +18,23 @@ const (
 // JSON is the error body of an HTTP API response, built by [AsJSON]. Errors
 // and Suggestions are never null.
 type JSON struct {
-	Type        string           `json:"type" required:"true" nullable:"false"`
-	Code        string           `json:"code" required:"true" nullable:"false"`
-	Message     string           `json:"message" required:"true" nullable:"false"`
-	URL         string           `json:"url,omitempty" required:"false"`
-	Errors      []JSONAdditional `json:"errors" required:"true" nullable:"false"`
-	Retry       *JSONRetry       `json:"retry,omitempty" required:"false"`
-	Suggestions []string         `json:"suggestions" required:"true" nullable:"false"`
+	Type        string                    `json:"type" required:"true" nullable:"false"`
+	Code        string                    `json:"code" required:"true" nullable:"false"`
+	Message     string                    `json:"message" required:"true" nullable:"false"`
+	URL         string                    `json:"url,omitempty" required:"false"`
+	Errors      []responseerroradditional `json:"errors" required:"true" nullable:"false"` // The error's additionals.
+	Retry       *responseretryjson        `json:"retry,omitempty" required:"false"`        // Set only when the error has a retry delay.
+	Suggestions []string                  `json:"suggestions" required:"true" nullable:"false"`
 }
 
-// JSONAdditional is one detail of a [JSON] error body.
-type JSONAdditional struct {
+// The nested types keep SigNoz's names, so the schemas a generator derives from
+// them don't change.
+type responseerroradditional struct {
 	Message     string   `json:"message" required:"true" nullable:"false"`
 	Suggestions []string `json:"suggestions" required:"true" nullable:"false"`
 }
 
-// JSONRetry tells the client when to retry, and is set only when the error has
-// a retry delay.
-type JSONRetry struct {
+type responseretryjson struct {
 	Delay time.Duration `json:"delay" required:"true" nullable:"false"` // In nanoseconds.
 }
 
@@ -50,24 +49,24 @@ func AsJSON(err error) *JSON {
 			Type:        TypeUnknown.String(),
 			Code:        CodeUnknown.String(),
 			Message:     err.Error(),
-			Errors:      []JSONAdditional{},
+			Errors:      []responseerroradditional{},
 			Suggestions: []string{},
 		}
 	}
 
-	errs := make([]JSONAdditional, len(b.additionals))
+	errs := make([]responseerroradditional, len(b.additionals))
 	for i, additional := range b.additionals {
-		errs[i] = JSONAdditional{Message: additional.Message, Suggestions: cloneNonNil(additional.Suggestions)}
+		errs[i] = responseerroradditional{Message: additional.Message, Suggestions: cloneNonNil(additional.Suggestions)}
 	}
 
-	var retry *JSONRetry
+	var retry *responseretryjson
 	if b.retryAfter > 0 {
-		retry = &JSONRetry{Delay: b.retryAfter}
+		retry = &responseretryjson{Delay: b.retryAfter}
 	}
 
 	return &JSON{
-		Type:        b.t.String(),
-		Code:        b.c.String(),
+		Type:        b.typ.String(),
+		Code:        b.code.String(),
 		Message:     b.Message(),
 		URL:         b.url,
 		Errors:      errs,
@@ -96,59 +95,19 @@ func AsURLValues(err error) url.Values {
 	return values
 }
 
-// HTTPStatus returns the HTTP status code for the type of the first typed
-// error in err's chain:
-//
-//	TypeInvalidInput        400 Bad Request
-//	TypeUnauthenticated     401 Unauthorized
-//	TypeForbidden           403 Forbidden
-//	TypeNotFound            404 Not Found
-//	TypeMethodNotAllowed    405 Method Not Allowed
-//	TypeConflict            409 Conflict
-//	TypeTooManyRequests     429 Too Many Requests
-//	TypeLicenseUnavailable  451 Unavailable For Legal Reasons
-//	TypeCanceled            499 Client Closed Request (nginx)
-//	TypeUnsupported         501 Not Implemented
-//	TypeUnavailable         503 Service Unavailable
-//	TypeTimeout             504 Gateway Timeout
-//
-// Every other type, and an untyped error, is 500 Internal Server Error.
+// HTTPStatus returns the HTTP status code of the type of the first typed error
+// in err's chain, which [NewType] sets for a package's own types. The base
+// types map to the matching 4xx and 5xx statuses, with TypeCanceled as nginx's
+// 499. TypeInternal, TypeFatal, TypeUnknown and an untyped error are 500.
 func HTTPStatus(err error) int {
-	switch TypeOf(err) {
-	case TypeInvalidInput:
-		return http.StatusBadRequest
-	case TypeUnauthenticated:
-		return http.StatusUnauthorized
-	case TypeForbidden:
-		return http.StatusForbidden
-	case TypeNotFound:
-		return http.StatusNotFound
-	case TypeMethodNotAllowed:
-		return http.StatusMethodNotAllowed
-	case TypeConflict:
-		return http.StatusConflict
-	case TypeTooManyRequests:
-		return http.StatusTooManyRequests
-	case TypeLicenseUnavailable:
-		return http.StatusUnavailableForLegalReasons
-	case TypeCanceled:
-		return statusClientClosedRequest
-	case TypeUnsupported:
-		return http.StatusNotImplemented
-	case TypeUnavailable:
-		return http.StatusServiceUnavailable
-	case TypeTimeout:
-		return http.StatusGatewayTimeout
-	}
-
-	return http.StatusInternalServerError
+	return TypeOf(err).status
 }
 
-// TypeFromHTTPStatus returns the type for an HTTP status code, the reverse of
-// [HTTPStatus], for building an error from another service's response. An
+// TypeFromHTTPStatus returns the base type for an HTTP status code, the reverse
+// of [HTTPStatus], for building an error from another service's response. An
 // unmapped 5xx status is TypeInternal, and any other unmapped status is
 // TypeUnknown.
-func TypeFromHTTPStatus(status int) typ {
+func TypeFromHTTPStatus(status int) Type {
 	switch status {
 	case http.StatusBadRequest:
 		return TypeInvalidInput
@@ -164,8 +123,6 @@ func TypeFromHTTPStatus(status int) typ {
 		return TypeConflict
 	case http.StatusTooManyRequests:
 		return TypeTooManyRequests
-	case http.StatusUnavailableForLegalReasons:
-		return TypeLicenseUnavailable
 	case statusClientClosedRequest:
 		return TypeCanceled
 	case http.StatusNotImplemented:

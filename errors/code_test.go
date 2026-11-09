@@ -30,7 +30,7 @@ func TestNewCode(t *testing.T) {
 			if testCase.expectedError {
 				require.Error(t, err)
 				assert.Equal(t, TypeInvalidInput, TypeOf(err))
-				assert.Equal(t, CodeInvalidInput, CodeOf(err))
+				assert.Equal(t, codeInvalidCode, CodeOf(err))
 				assert.Contains(t, err.Error(), "expected a letter")
 
 				return

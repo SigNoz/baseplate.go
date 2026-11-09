@@ -19,7 +19,7 @@ func TestAsJSON(t *testing.T) {
 	}{
 		{
 			name:         "Base_EmptyListsNotNull",
-			err:          New(TypeNotFound, CodeNotFound, "dashboard not found"),
+			err:          New(TypeNotFound, MustNewCode("not_found"), "dashboard not found"),
 			expectedJSON: `{"type":"not-found","code":"not_found","message":"dashboard not found","errors":[],"suggestions":[]}`,
 		},
 		{
@@ -27,7 +27,7 @@ func TestAsJSON(t *testing.T) {
 			err: New(TypeTooManyRequests, MustNewCode("rate_limited"), "slow down").
 				WithURL("https://signoz.io/docs/limits").
 				WithAdditional("100 requests per minute").
-				WithSuggestiveAdditional("key servce", "did you mean: service").
+				WithAdditional("key servce", "did you mean: service").
 				WithSuggestions("batch the requests").
 				WithRetryAfter(2 * time.Second),
 			expectedJSON: `{"type":"too-many-requests","code":"rate_limited","message":"slow down","url":"https://signoz.io/docs/limits",` +
@@ -36,7 +36,7 @@ func TestAsJSON(t *testing.T) {
 		},
 		{
 			name:         "Wrapped_OwnMessageOnly",
-			err:          Wrap(context.Canceled, TypeCanceled, CodeCanceled, "query canceled"),
+			err:          Wrap(context.Canceled, TypeCanceled, MustNewCode("canceled"), "query canceled"),
 			expectedJSON: `{"type":"canceled","code":"canceled","message":"query canceled","errors":[],"suggestions":[]}`,
 		},
 		{
@@ -57,8 +57,8 @@ func TestAsJSON(t *testing.T) {
 }
 
 func TestAsJSON_DoesNotShareSlices(t *testing.T) {
-	err := New(TypeInvalidInput, CodeInvalidInput, "invalid query").
-		WithSuggestiveAdditional("key servce", "did you mean: service").
+	err := New(TypeInvalidInput, MustNewCode("invalid_input"), "invalid query").
+		WithAdditional("key servce", "did you mean: service").
 		WithSuggestions("check the syntax")
 
 	body := AsJSON(err)
@@ -85,9 +85,9 @@ func TestAsURLValues(t *testing.T) {
 func TestHTTPStatus_TypeFromHTTPStatus(t *testing.T) {
 	testCases := []struct {
 		name           string
-		t              typ
+		t              Type
 		expectedStatus int
-		expectedType   typ
+		expectedType   Type
 	}{
 		{name: "InvalidInput", t: TypeInvalidInput, expectedStatus: http.StatusBadRequest, expectedType: TypeInvalidInput},
 		{name: "Unauthenticated", t: TypeUnauthenticated, expectedStatus: http.StatusUnauthorized, expectedType: TypeUnauthenticated},
@@ -96,7 +96,7 @@ func TestHTTPStatus_TypeFromHTTPStatus(t *testing.T) {
 		{name: "MethodNotAllowed", t: TypeMethodNotAllowed, expectedStatus: http.StatusMethodNotAllowed, expectedType: TypeMethodNotAllowed},
 		{name: "Conflict", t: TypeConflict, expectedStatus: http.StatusConflict, expectedType: TypeConflict},
 		{name: "TooManyRequests", t: TypeTooManyRequests, expectedStatus: http.StatusTooManyRequests, expectedType: TypeTooManyRequests},
-		{name: "LicenseUnavailable", t: TypeLicenseUnavailable, expectedStatus: http.StatusUnavailableForLegalReasons, expectedType: TypeLicenseUnavailable},
+		{name: "OwnType_ItsStatus_ReverseUnknown", t: MustNewType("license-unavailable", http.StatusUnavailableForLegalReasons, false), expectedStatus: http.StatusUnavailableForLegalReasons, expectedType: TypeUnknown},
 		{name: "Canceled", t: TypeCanceled, expectedStatus: 499, expectedType: TypeCanceled},
 		{name: "Unsupported", t: TypeUnsupported, expectedStatus: http.StatusNotImplemented, expectedType: TypeUnsupported},
 		{name: "Unavailable", t: TypeUnavailable, expectedStatus: http.StatusServiceUnavailable, expectedType: TypeUnavailable},
@@ -124,7 +124,7 @@ func TestTypeFromHTTPStatus_Unmapped(t *testing.T) {
 	testCases := []struct {
 		name         string
 		status       int
-		expectedType typ
+		expectedType Type
 	}{
 		{name: "BadGateway_Internal", status: http.StatusBadGateway, expectedType: TypeInternal},
 		{name: "Teapot_Unknown", status: http.StatusTeapot, expectedType: TypeUnknown},

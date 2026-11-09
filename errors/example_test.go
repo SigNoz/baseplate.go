@@ -13,38 +13,44 @@ import (
 	"github.com/SigNoz/baseplate.go/errors"
 )
 
+// A package declares the codes and the types of its own errors.
 var (
-	// CodeLicenseExpired is a code a package declares for itself.
-	CodeLicenseExpired = errors.MustNewCode("license_expired")
+	CodeBackupMissing      = errors.MustNewCode("backup_missing")
+	CodeFilterInvalid      = errors.MustNewCode("filter_invalid")
+	CodeLicenseExpired     = errors.MustNewCode("license_expired")
+	CodeLogsQueryFailed    = errors.MustNewCode("logs_query_failed")
+	CodeRateLimited        = errors.MustNewCode("rate_limited")
+	CodeUserReadFailed     = errors.MustNewCode("user_read_failed")
+	TypeLicenseUnavailable = errors.MustNewType("license-unavailable", http.StatusUnavailableForLegalReasons, false)
 )
 
 func Example() {
-	err := errors.Wrapf(fs.ErrNotExist, errors.TypeNotFound, errors.CodeNotFound, "no backup of %s", "db_1")
+	err := errors.Wrapf(fs.ErrNotExist, errors.TypeNotFound, CodeBackupMissing, "no backup of %s", "db_1")
 
 	_, _ = fmt.Println(err)
 	_, _ = fmt.Println(errors.TypeOf(err), errors.CodeOf(err))
 	_, _ = fmt.Println(errors.IsNotFound(err), errors.Is(err, fs.ErrNotExist))
 	// Output:
 	// no backup of db_1: file does not exist
-	// not-found not_found
+	// not-found backup_missing
 	// true true
 }
 
 func ExampleNew() {
-	err := errors.New(errors.TypeLicenseUnavailable, CodeLicenseExpired, "license expired on 2026-10-01")
+	err := errors.New(TypeLicenseUnavailable, CodeLicenseExpired, "license expired on 2026-10-01")
 
 	_, _ = fmt.Println(err)
-	_, _ = fmt.Println(errors.Asc(err, CodeLicenseExpired))
+	_, _ = fmt.Println(errors.Asc(err, CodeLicenseExpired), errors.HTTPStatus(err), errors.IsRetryable(err))
 	// Output:
 	// license expired on 2026-10-01
-	// true
+	// true 451 false
 }
 
 func ExampleNew_details() {
-	err := errors.New(errors.TypeInvalidInput, errors.CodeInvalidInput, "invalid filter").
+	err := errors.New(errors.TypeInvalidInput, CodeFilterInvalid, "invalid filter").
 		WithURL("https://signoz.io/docs/filters").
 		WithAdditional("operator ~ is unsupported").
-		WithSuggestiveAdditional("key servce is unknown", "did you mean: service").
+		WithAdditional("key servce is unknown", "did you mean: service").
 		WithSuggestions("check the filter syntax")
 
 	_, _ = fmt.Println(err.Message())
@@ -58,10 +64,21 @@ func ExampleNew_details() {
 	// [check the filter syntax]
 }
 
-func ExampleWrap() {
-	cause := errors.New(errors.TypeTooManyRequests, errors.CodeTooManyRequests, "rate limited").WithRetryAfter(2 * time.Second)
+func ExampleNewType() {
+	typ, err := errors.NewType("license-unavailable", http.StatusUnavailableForLegalReasons, false)
+	if err != nil {
+		panic(err)
+	}
 
-	err := errors.Wrap(cause, errors.TypeUnavailable, errors.CodeUnavailable, "cannot query logs")
+	_, _ = fmt.Println(typ)
+	// Output:
+	// license-unavailable
+}
+
+func ExampleWrap() {
+	cause := errors.New(errors.TypeTooManyRequests, CodeRateLimited, "rate limited").WithRetryAfter(2 * time.Second)
+
+	err := errors.Wrap(cause, errors.TypeUnavailable, CodeLogsQueryFailed, "cannot query logs")
 
 	_, _ = fmt.Println(err)
 	_, _ = fmt.Println(err.Message())
@@ -72,32 +89,33 @@ func ExampleWrap() {
 	// unavailable 2s
 }
 
-// An untyped error becomes TypeInternal, and its text stays the same.
+// An untyped error becomes TypeInternal and CodeUnknown, and its text stays the
+// same.
 func ExampleWithAdditionalf() {
 	err := errors.WithAdditionalf(fs.ErrPermission, "cannot delete user %s", "u_1")
 
 	_, _ = fmt.Println(err)
-	_, _ = fmt.Println(errors.TypeOf(err))
+	_, _ = fmt.Println(errors.TypeOf(err), errors.CodeOf(err))
 	_, _ = fmt.Println(err.Additionals())
 	// Output:
 	// permission denied
-	// internal
+	// internal unknown
 	// [{cannot delete user u_1 []}]
 }
 
 func ExampleTypeOf() {
-	typed := errors.Join(context.Canceled, errors.New(errors.TypeConflict, errors.CodeConflict, "topic exists"))
+	typed := errors.Join(context.Canceled, errors.New(TypeLicenseUnavailable, CodeLicenseExpired, "license expired"))
 	untyped := context.DeadlineExceeded
 
 	_, _ = fmt.Println(errors.TypeOf(typed))
 	_, _ = fmt.Println(errors.TypeOf(untyped))
 	// Output:
-	// conflict
+	// license-unavailable
 	// unknown
 }
 
 func ExampleMessageOf() {
-	err := errors.Wrap(fs.ErrClosed, errors.TypeInternal, errors.CodeInternal, "cannot read user")
+	err := errors.Wrap(fs.ErrClosed, errors.TypeInternal, CodeUserReadFailed, "cannot read user")
 
 	_, _ = fmt.Println(errors.MessageOf(err))
 	_, _ = fmt.Println(errors.MessageOf(fs.ErrClosed))
@@ -107,8 +125,8 @@ func ExampleMessageOf() {
 }
 
 func ExampleIsRetryable() {
-	_, _ = fmt.Println(errors.IsRetryable(errors.New(errors.TypeUnavailable, errors.CodeUnavailable, "endpoint unreachable")))
-	_, _ = fmt.Println(errors.IsRetryable(errors.New(errors.TypeInvalidInput, errors.CodeInvalidInput, "bad id")))
+	_, _ = fmt.Println(errors.IsRetryable(errors.New(errors.TypeTooManyRequests, CodeRateLimited, "rate limited")))
+	_, _ = fmt.Println(errors.IsRetryable(errors.New(errors.TypeInvalidInput, CodeFilterInvalid, "invalid filter")))
 	_, _ = fmt.Println(errors.IsRetryable(context.DeadlineExceeded))
 	// Output:
 	// true
@@ -136,13 +154,13 @@ func ExampleAttr() {
 		},
 	}))
 
-	logger.Error("cannot restore", errors.Attr(errors.New(errors.TypeNotFound, errors.CodeNotFound, "no backup of db_1")))
+	logger.Error("cannot restore", errors.Attr(errors.New(errors.TypeNotFound, CodeBackupMissing, "no backup of db_1")))
 	// Output:
-	// level=ERROR msg="cannot restore" exception.type=not-found exception.code=not_found exception.message="no backup of db_1"
+	// level=ERROR msg="cannot restore" exception.type=not-found exception.code=backup_missing exception.message="no backup of db_1"
 }
 
 func ExampleAsJSON() {
-	err := errors.Wrap(context.Canceled, errors.TypeCanceled, errors.CodeCanceled, "query canceled").
+	err := errors.Wrap(context.Canceled, errors.TypeCanceled, CodeLogsQueryFailed, "query canceled").
 		WithRetryAfter(time.Second)
 
 	body, marshalErr := json.Marshal(errors.AsJSON(err))
@@ -152,14 +170,16 @@ func ExampleAsJSON() {
 
 	_, _ = fmt.Println(string(body))
 	// Output:
-	// {"type":"canceled","code":"canceled","message":"query canceled","errors":[],"retry":{"delay":1000000000},"suggestions":[]}
+	// {"type":"canceled","code":"logs_query_failed","message":"query canceled","errors":[],"retry":{"delay":1000000000},"suggestions":[]}
 }
 
 func ExampleHTTPStatus() {
-	_, _ = fmt.Println(errors.HTTPStatus(errors.New(errors.TypeNotFound, errors.CodeNotFound, "dashboard not found")))
+	_, _ = fmt.Println(errors.HTTPStatus(errors.New(errors.TypeNotFound, CodeBackupMissing, "no backup of db_1")))
+	_, _ = fmt.Println(errors.HTTPStatus(errors.New(TypeLicenseUnavailable, CodeLicenseExpired, "license expired")))
 	_, _ = fmt.Println(errors.HTTPStatus(context.DeadlineExceeded))
 	// Output:
 	// 404
+	// 451
 	// 500
 }
 
