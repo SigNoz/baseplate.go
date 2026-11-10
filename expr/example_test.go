@@ -5,6 +5,7 @@ import (
 
 	"github.com/SigNoz/baseplate.go/errors"
 	"github.com/SigNoz/baseplate.go/expr"
+	"github.com/SigNoz/baseplate.go/expr/ast"
 )
 
 func Example() {
@@ -115,4 +116,33 @@ func ExampleNest() {
 	// Output:
 	// map[k8s:map[namespace:alpha pod:map[name:api-7f9c]]] false
 	// true
+}
+
+// bodyField reads a member of body from a parsed copy of it, body_map.
+type bodyField struct{}
+
+func (bodyField) Visit(node *ast.Node) {
+	member, ok := (*node).(*ast.MemberNode)
+	if !ok {
+		return
+	}
+
+	if root, ok := member.Node.(*ast.IdentifierNode); ok && root.Value == "body" {
+		root.Value = "body_map"
+	}
+}
+
+func ExampleEnv_Patch() {
+	program, err := expr.Compile(`body.level = "error"`, expr.Untyped().Patch(bodyField{}))
+	if err != nil {
+		panic(err)
+	}
+
+	matched, err := program.Bool(map[string]any{
+		"body":     `{"level": "error"}`,
+		"body_map": map[string]any{"level": "error"},
+	})
+	_, _ = fmt.Println(matched, err)
+	// Output:
+	// true <nil>
 }
