@@ -1,10 +1,12 @@
 package expr
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/expr-lang/expr/ast"
+	"github.com/expr-lang/expr/docgen"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -306,26 +308,71 @@ func TestTypedStatic(t *testing.T) {
 			},
 		},
 		{
-			name: "MisspeltName_TypeInvalid",
+			name: "MisspelledVar_NameUnknown",
 			src:  `stauts_code = 200`,
 			expectedError: &tError{
-				code:    CodeTypeInvalid,
-				message: "unknown name stauts_code",
+				code:        CodeNameUnknown,
+				message:     "unknown name stauts_code; did you mean status_code?",
+				suggestions: []string{"status_code"},
+				from:        0,
+				to:          11,
+				line:        1,
+				column:      1,
+			},
+		},
+		{
+			name: "MisspelledField_NameUnknown",
+			src:  `tls.vrsion = "1.3"`,
+			expectedError: &tError{
+				code:        CodeNameUnknown,
+				message:     "type expr.tTLS has no field vrsion; did you mean tls.version?",
+				suggestions: []string{"tls.version"},
+				from:        4,
+				to:          10,
+				line:        1,
+				column:      5,
+			},
+		},
+		{
+			name: "UnknownVarNoCloseName_NameUnknown",
+			src:  `latency < duration("1s")`,
+			expectedError: &tError{
+				code:    CodeNameUnknown,
+				message: "unknown name latency",
 				from:    0,
-				to:      11,
+				to:      7,
 				line:    1,
 				column:  1,
 			},
 		},
 		{
-			name: "MisspeltField_TypeInvalid",
-			src:  `tls.versoin = "1.3"`,
+			name: "MisspelledFunction_FunctionUnknown",
+			src:  `uppr(body) = "OK"`,
 			expectedError: &tError{
-				code:   CodeTypeInvalid,
-				line:   1,
-				from:   4,
-				to:     11,
-				column: 5,
+				code:        CodeFunctionUnknown,
+				message:     "unknown name uppr; did you mean upper?",
+				suggestions: []string{"upper"},
+				from:        0,
+				to:          4,
+				line:        1,
+				column:      1,
+			},
+		},
+		{
+			name:     "LetName_NotAField",
+			src:      `let limit = 300; body_size < limit`,
+			expected: true,
+		},
+		{
+			name: "StructAgainstString_TypeInvalid",
+			src:  `tls = "1.3"`,
+			expectedError: &tError{
+				code:    CodeTypeInvalid,
+				message: "invalid operation: = (mismatched types expr.tTLS and string)",
+				from:    4,
+				to:      5,
+				line:    1,
+				column:  5,
 			},
 		},
 		{
@@ -533,4 +580,86 @@ func TestEnv_LimitMemory(t *testing.T) {
 			assert.Equal(t, testCase.expectedCode, errors.CodeOf(err))
 		})
 	}
+}
+
+func TestEnv_Schema(t *testing.T) {
+	type tTLSVersion struct {
+		Version string `expr:"version"`
+	}
+
+	type tCheck struct {
+		StatusCode int               `expr:"status_code"`
+		Headers    map[string]string `expr:"headers"`
+		JSON       any               `expr:"json"`
+		Latency    time.Duration     `expr:"latency"`
+		TLS        tTLSVersion       `expr:"tls"`
+	}
+
+	testCases := []struct {
+		name           string
+		env            Env
+		expectedLimits Limits
+		expectedKinds  map[docgen.Identifier]docgen.Kind
+	}{
+		{
+			name: "Untyped_NoVars",
+			env:  Untyped(),
+		},
+		{
+			name: "TypedDynamic_NoVarsWithLimits",
+			env:  TypedDynamic().LimitNodes(500),
+			expectedLimits: Limits{
+				Nodes: 500,
+			},
+		},
+		{
+			name: "TypedStatic_VarsAndLimits",
+			env:  TypedStatic(tCheck{}).LimitNesting(1).LimitPattern(256).LimitMemory(1000),
+			expectedLimits: Limits{
+				Nesting: 1,
+				Pattern: 256,
+			},
+			expectedKinds: map[docgen.Identifier]docgen.Kind{
+				"status_code": "int",
+				"headers":     "map",
+				"json":        "any",
+				"latency":     "struct",
+				"tls":         "struct",
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			schema, err := testCase.env.Schema()
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expectedLimits, schema.Limits)
+
+			if testCase.expectedKinds == nil {
+				assert.Nil(t, schema.Vars)
+
+				return
+			}
+
+			require.NotNil(t, schema.Vars)
+
+			for name, kind := range testCase.expectedKinds {
+				require.Contains(t, schema.Vars.Variables, name)
+				assert.Equal(t, kind, schema.Vars.Variables[name].Kind, name)
+			}
+
+			encoded, err := json.Marshal(schema)
+			require.NoError(t, err)
+
+			var decoded Schema
+			require.NoError(t, json.Unmarshal(encoded, &decoded))
+			assert.Equal(t, schema.Limits, decoded.Limits)
+			assert.Len(t, decoded.Vars.Variables, len(schema.Vars.Variables))
+		})
+	}
+}
+
+func TestEnv_Schema_VarsInvalid(t *testing.T) {
+	_, err := TypedStatic(nil).Schema()
+	tAssertError(t, &tError{code: CodeVarsInvalid}, err)
 }

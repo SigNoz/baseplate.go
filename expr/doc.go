@@ -54,6 +54,18 @@
 // nest, how long a REGEXP pattern is, how many nodes the program has and
 // how much it allocates in a run. Each limit is unset by default.
 //
+// # Schema, references and values
+//
+// [Env.Schema] describes an Env's names for a client, such as an editor
+// that checks expressions as they are typed or a docs page: the declared
+// vars of a TypedStatic Env, as expr's docgen describes them, and the
+// limits programs compile with.
+//
+// [Program.References] lists the variables an expression reads, as paths
+// such as tls.version. [Program.ReferenceValues] runs each of them with a
+// set of variables and returns their values as text, to show what an
+// expression saw when it didn't match.
+//
 // # Patches
 //
 // [Env.Patch] adds a caller's own rewrite of the syntax tree, such as

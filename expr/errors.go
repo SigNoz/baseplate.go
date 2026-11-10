@@ -12,15 +12,18 @@ import (
 // The codes of the errors [Compile], [CompileValue], [Program.Bool] and
 // [Program.Run] return.
 var (
-	CodeSyntaxInvalid  = errors.MustNewCode("syntax_invalid")
-	CodeTypeInvalid    = errors.MustNewCode("type_invalid")
-	CodeResultNotBool  = errors.MustNewCode("result_not_bool")
-	CodeNodesExceeded  = errors.MustNewCode("nodes_exceeded")
-	CodeRunFailed      = errors.MustNewCode("run_failed")
-	CodeNestingTooDeep = errors.MustNewCode("nesting_too_deep")
-	CodePatternInvalid = errors.MustNewCode("pattern_invalid")
-	CodeMemoryExceeded = errors.MustNewCode("memory_exceeded")
-	CodeVarsInvalid    = errors.MustNewCode("vars_invalid")
+	CodeSyntaxInvalid   = errors.MustNewCode("syntax_invalid")
+	CodeTypeInvalid     = errors.MustNewCode("type_invalid")
+	CodeResultNotBool   = errors.MustNewCode("result_not_bool")
+	CodeNodesExceeded   = errors.MustNewCode("nodes_exceeded")
+	CodeRunFailed       = errors.MustNewCode("run_failed")
+	CodeNestingTooDeep  = errors.MustNewCode("nesting_too_deep")
+	CodePatternInvalid  = errors.MustNewCode("pattern_invalid")
+	CodeMemoryExceeded  = errors.MustNewCode("memory_exceeded")
+	CodeVarsInvalid     = errors.MustNewCode("vars_invalid")
+	CodeNameUnknown     = errors.MustNewCode("name_unknown")
+	CodeFunctionUnknown = errors.MustNewCode("function_unknown")
+	CodeVarTypeInvalid  = errors.MustNewCode("var_type_invalid")
 )
 
 // PositionError is where in an expression's source an error is. It is the
@@ -43,8 +46,8 @@ func (e *PositionError) Error() string {
 }
 
 // positionError turns an error from expr, whose positions are on the
-// upstream text, into an error on the source with code.
-func (s *source) positionError(err error, code errors.Code) error {
+// upstream text, into an error on the source with code and suggestions.
+func (s *source) positionError(err error, code errors.Code, suggestions ...string) error {
 	upstream, ok := errors.AsType[*file.Error](err)
 	if !ok {
 		return errors.New(errors.TypeInvalidInput, code, err.Error())
@@ -65,7 +68,12 @@ func (s *source) positionError(err error, code errors.Code) error {
 		snippet: bound.Snippet,
 	}
 
-	return errors.Wrap(position, errors.TypeInvalidInput, code, s.respell(upstream.Message, upstream.From, upstream.To))
+	wrapped := errors.Wrap(position, errors.TypeInvalidInput, code, s.respell(upstream.Message, upstream.From, upstream.To))
+	if len(suggestions) > 0 {
+		return wrapped.WithSuggestions(suggestions...)
+	}
+
+	return wrapped
 }
 
 // respell puts back the source spelling of a rewritten token that an error

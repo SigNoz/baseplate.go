@@ -163,8 +163,8 @@ func ExampleTypedStatic() {
 
 	env := expr.TypedStatic(check{}).LimitNesting(1).LimitPattern(256)
 
-	_, err := expr.Compile(`tls.versoin = "1.3"`, env)
-	_, _ = fmt.Println(errors.CodeOf(err))
+	_, err := expr.Compile(`tls.vrsion = "1.3"`, env)
+	_, _ = fmt.Println(errors.CodeOf(err), errors.MessageOf(err))
 
 	program, err := expr.Compile(`status_code = 200 AND response_time < duration("1s") AND json.missing = nil`, env)
 	if err != nil {
@@ -178,6 +178,6 @@ func ExampleTypedStatic() {
 	})
 	_, _ = fmt.Println(passed, err)
 	// Output:
-	// type_invalid
+	// name_unknown type expr_test.tls has no field vrsion; did you mean tls.version?
 	// true <nil>
 }
