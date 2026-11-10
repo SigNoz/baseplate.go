@@ -62,9 +62,9 @@
 // [SchemaOf] gives the vars a struct declares alone.
 //
 // [Program.References] lists the variables an expression reads, as paths
-// such as tls.version. [Program.Values] runs each of them with a set of
-// variables and returns their values as text, to show what an expression
-// saw when it didn't match.
+// such as tls.version. [Program.ReferenceValues] runs each of them with a
+// set of variables and returns their values as text, to show what an
+// expression saw when it didn't match.
 //
 // # Patches
 //

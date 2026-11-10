@@ -63,7 +63,7 @@ func TestProgram_References(t *testing.T) {
 
 // The values are those a test run shows next to a failed assertion
 // (Assertions TRD §6).
-func TestProgram_Values(t *testing.T) {
+func TestProgram_ReferenceValues(t *testing.T) {
 	vars := tHTTP{
 		StatusCode: 503,
 		Headers: map[string]string{
@@ -123,7 +123,7 @@ func TestProgram_Values(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			program, err := Compile(testCase.src, tHTTPEnv())
 			require.NoError(t, err)
-			assert.Equal(t, testCase.expected, program.Values(vars))
+			assert.Equal(t, testCase.expected, program.ReferenceValues(vars))
 		})
 	}
 }

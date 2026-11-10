@@ -45,7 +45,7 @@ func TestEnv_Schema(t *testing.T) {
 				`{"name":"json","type":"any"},` +
 				`{"name":"latency","type":"duration"},` +
 				`{"name":"tls","type":"object","fields":[{"name":"version","type":"string"},{"name":"sans","type":"list","elem":{"type":"string"}}]}` +
-				`],"limits":{"nesting":1,"pattern_length":256}}`,
+				`],"limits":{"nesting":1,"pattern":256}}`,
 		},
 	}
 

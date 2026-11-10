@@ -13,7 +13,8 @@ import (
 	"github.com/expr-lang/expr/parser"
 )
 
-// maxValueLength caps the characters of a value [Program.Values] returns.
+// maxValueLength caps the characters of a value that
+// [Program.ReferenceValues] returns.
 const maxValueLength = 256
 
 var identifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -27,12 +28,12 @@ func (p *Program) References() []string {
 	return slices.Clone(p.references)
 }
 
-// Values runs each of [Program.References] with vars and returns its value
-// as text, at most 256 characters, to show what an expression saw. Strings
-// are as they are, nil is "nil", lists, maps and structs are JSON, and
-// other values are formatted as Go formats them. A reference that fails to
-// compile or run is left out.
-func (p *Program) Values(vars any) map[string]string {
+// ReferenceValues runs each of [Program.References] with vars and returns
+// its value as text, at most 256 characters, to show what an expression
+// saw. Strings are as they are, nil is "nil", lists, maps and structs are
+// JSON, and other values are formatted as Go formats them. A reference
+// that fails to compile or run is left out.
+func (p *Program) ReferenceValues(vars any) map[string]string {
 	p.values.once.Do(func() {
 		p.values.programs = map[string]*Program{}
 

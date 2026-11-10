@@ -23,9 +23,9 @@ type Var struct {
 // Limits are the limits a program is compiled with. Zero is unset. The
 // memory limit is left out, as it only applies when a program runs.
 type Limits struct {
-	Nesting       uint `json:"nesting,omitempty"`
-	PatternLength uint `json:"pattern_length,omitempty"`
-	Nodes         uint `json:"nodes,omitempty"`
+	Nesting uint `json:"nesting,omitempty"`
+	Pattern uint `json:"pattern,omitempty"`
+	Nodes   uint `json:"nodes,omitempty"`
 }
 
 // SchemaOf returns the vars that vars declares, as [TypedStatic] reads them. It
@@ -59,9 +59,9 @@ func (e Env) Schema() (Schema, error) {
 	}
 
 	schema.Limits = Limits{
-		Nesting:       e.nesting,
-		PatternLength: e.pattern,
-		Nodes:         e.nodes,
+		Nesting: e.nesting,
+		Pattern: e.pattern,
+		Nodes:   e.nodes,
 	}
 
 	return schema, nil
