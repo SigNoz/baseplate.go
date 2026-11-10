@@ -71,8 +71,8 @@ func TypedDynamic() Env {
 // With vars of type struct{ Value string `expr:"value"` }:
 //
 //	value > 80           compile error (CodeTypeInvalid): string and int
-//	cluster.name = "c1"  compile error (CodeNameUnknown): unknown var
-//	plan                 compile error (CodeNameUnknown): unknown var
+//	cluster.name = "c1"  compile error (CodeNameUnknown): unknown name
+//	plan                 compile error (CodeNameUnknown): unknown name
 func TypedStatic(vars any) Env {
 	return Env{
 		static:  true,

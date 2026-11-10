@@ -132,18 +132,3 @@ func subject(path string) string {
 
 	return "var " + path
 }
-
-var durationType = reflect.TypeFor[time.Duration]()
-
-// fieldName is the name expr gives a struct field: its expr tag, or else
-// its Go name. A field tagged "-" has none.
-func fieldName(field reflect.StructField) (string, bool) {
-	switch tag := field.Tag.Get("expr"); tag {
-	case "-":
-		return "", false
-	case "":
-		return field.Name, true
-	default:
-		return tag, true
-	}
-}

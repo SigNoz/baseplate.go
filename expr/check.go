@@ -8,214 +8,121 @@ import (
 
 	"github.com/expr-lang/expr/ast"
 	"github.com/expr-lang/expr/builtin"
+	"github.com/expr-lang/expr/checker/nature"
+	"github.com/expr-lang/expr/conf"
 	"github.com/expr-lang/expr/file"
 	"github.com/expr-lang/expr/parser"
 
 	"github.com/SigNoz/baseplate.go/errors"
 )
 
-// variable is a declared variable or struct field: its name and Go type.
-type variable struct {
-	name string
-	t    reflect.Type
-}
-
-// variables returns the top-level variables vars declares, in declaration
-// order for a struct and sorted for a map.
-func variables(vars any) []variable {
-	t := reflect.TypeOf(vars)
-	if t.Kind() == reflect.Struct {
-		return fieldsOf(t)
+// nameError returns the checker's error about a name that vars, the vars of
+// a [TypedStatic] program, don't declare, reported on s with
+// [CodeNameUnknown] or [CodeFunctionUnknown] and the nearest declared name
+// as a suggestion. It returns nil for any other error.
+func nameError(tree *parser.Tree, err error, vars any, s *source) error {
+	checked, ok := errors.AsType[*file.Error](err)
+	if !ok {
+		return nil
 	}
 
-	value := reflect.ValueOf(vars)
+	cache := new(nature.Cache)
 
-	var declared []variable
-	for _, key := range value.MapKeys() {
-		declared = append(declared, variable{
-			name: key.String(),
-			t:    value.MapIndex(key).Elem().Type(),
-		})
-	}
+	var (
+		code       = CodeNameUnknown
+		path       string
+		candidates []string
+	)
 
-	slices.SortFunc(declared, func(a, b variable) int {
-		return strings.Compare(a.name, b.name)
-	})
-
-	return declared
-}
-
-// fieldsOf returns the fields expr reads on a struct type, with embedded
-// structs' fields in place of the embedded struct.
-func fieldsOf(t reflect.Type) []variable {
-	var fields []variable
-
-	for field := range t.Fields() {
-		if !field.IsExported() {
-			continue
+	switch {
+	case strings.HasPrefix(checked.Message, "unknown name "):
+		identifier, found := nodeAt[*ast.IdentifierNode](tree, checked.Location)
+		if !found {
+			return nil
 		}
 
-		if field.Anonymous && field.Type.Kind() == reflect.Struct {
-			fields = append(fields, fieldsOf(field.Type)...)
-
-			continue
+		if slices.ContainsFunc(nodesOf[*ast.CallNode](&tree.Node), func(call *ast.CallNode) bool { return call.Callee == ast.Node(identifier) }) {
+			code = CodeFunctionUnknown
+			candidates = builtin.Names
+		} else {
+			env := conf.EnvWithCache(cache, vars)
+			candidates = keys(env.All(cache))
 		}
 
-		if name, ok := fieldName(field); ok {
-			fields = append(fields, variable{
-				name: name,
-				t:    field.Type,
-			})
-		}
-	}
-
-	return fields
-}
-
-// checkNames reports, in the schema's own terms, the first name in tree
-// that the declared variables or the builtins don't have.
-func (p *Program) checkNames(tree *parser.Tree) error {
-	checker := &nameChecker{
-		program: p,
-		top:     variables(p.env.vars),
-		callees: map[ast.Node]bool{},
-		lets:    map[string]bool{},
-	}
-
-	ast.Walk(&tree.Node, &scopeCollector{checker: checker})
-	ast.Walk(&tree.Node, checker)
-
-	return checker.err
-}
-
-type nameChecker struct {
-	program *Program
-	top     []variable
-	callees map[ast.Node]bool
-	lets    map[string]bool
-	err     error
-}
-
-// scopeCollector records the names that aren't variables: called names and
-// names bound by let.
-type scopeCollector struct {
-	checker *nameChecker
-}
-
-func (c *scopeCollector) Visit(node *ast.Node) {
-	switch n := (*node).(type) {
-	case *ast.CallNode:
-		c.checker.callees[n.Callee] = true
-	case *ast.VariableDeclaratorNode:
-		c.checker.lets[n.Name] = true
-	}
-}
-
-func (c *nameChecker) Visit(node *ast.Node) {
-	if c.err != nil {
-		return
-	}
-
-	switch n := (*node).(type) {
-	case *ast.CallNode:
-		callee, ok := n.Callee.(*ast.IdentifierNode)
-		if !ok || slices.ContainsFunc(c.top, func(v variable) bool { return v.name == callee.Value }) {
-			return
+		candidates = suggestions(identifier.Value, candidates)
+	case strings.Contains(checked.Message, " has no field "):
+		member, found := memberAt(tree, checked.Location)
+		if !found {
+			return nil
 		}
 
-		message := "unknown function " + callee.Value
+		key, _ := member.Property.(*ast.StringNode)
+		parent := member.Node.Type()
 
-		suggestion := suggest(callee.Value, builtin.Names)
-		if suggestion != "" {
-			message += "; did you mean " + suggestion + "?"
+		for parent != nil && parent.Kind() == reflect.Pointer {
+			parent = parent.Elem()
 		}
 
-		c.fail(callee, message, CodeFunctionUnknown, suggestion)
-	case *ast.IdentifierNode:
-		if !c.callees[n] {
-			c.resolve(n)
-		}
-	case *ast.MemberNode:
-		c.resolve(n)
-	}
-}
-
-// resolve returns the declared type and path of node, a name or a chain of
-// string-keyed members on one. It stops, knowing nothing, at a map, an any
-// value or anything that isn't such a chain, and records an error for a
-// name or field that isn't declared.
-func (c *nameChecker) resolve(node ast.Node) (reflect.Type, string, bool) {
-	switch n := node.(type) {
-	case *ast.IdentifierNode:
-		if c.lets[n.Value] || n.Value == "$env" {
-			return nil, "", false
+		if parent == nil || parent.Kind() != reflect.Struct {
+			return nil
 		}
 
-		if i := slices.IndexFunc(c.top, func(v variable) bool { return v.name == n.Value }); i >= 0 {
-			return c.top[i].t, n.Value, true
-		}
-
-		c.unknownName(n, "", n.Value, c.top)
-	case *ast.MemberNode:
-		key, ok := n.Property.(*ast.StringNode)
-		if !ok || n.Method {
-			return nil, "", false
-		}
-
-		t, path, known := c.resolve(n.Node)
-		if !known || t.Kind() != reflect.Struct || t == timeType {
-			return nil, "", false
-		}
-
-		fields := fieldsOf(t)
-		if i := slices.IndexFunc(fields, func(v variable) bool { return v.name == key.Value }); i >= 0 {
-			return fields[i].t, join(path, key.Value), true
-		}
-
-		c.unknownName(key, path, key.Value, fields)
+		path, _ = referencePath(member.Node, nil)
+		candidates = suggestions(key.Value, keys(nature.StructFields(cache, parent)))
+	default:
+		return nil
 	}
 
-	return nil, "", false
-}
-
-func (c *nameChecker) unknownName(node ast.Node, path, name string, siblings []variable) {
-	if c.err != nil {
-		return
+	message := checked.Message
+	if len(candidates) > 0 {
+		candidates[0] = join(path, candidates[0])
+		message += "; did you mean " + candidates[0] + "?"
 	}
 
-	names := make([]string, 0, len(siblings))
-	for _, sibling := range siblings {
-		names = append(names, sibling.name)
-	}
-
-	message := subject(join(path, name))
-	message = "unknown " + message
-
-	suggestion := suggest(name, names)
-	if suggestion != "" {
-		suggestion = join(path, suggestion)
-		message += "; did you mean " + suggestion + "?"
-	}
-
-	c.fail(node, message, CodeNameUnknown, suggestion)
-}
-
-func (c *nameChecker) fail(node ast.Node, message string, code errors.Code, suggestion string) {
-	var suggestions []string
-	if suggestion != "" {
-		suggestions = []string{suggestion}
-	}
-
-	c.err = c.program.source.positionError(&file.Error{
-		Location: node.Location(),
+	return s.positionError(&file.Error{
+		Location: checked.Location,
 		Message:  message,
-	}, code, suggestions...)
+	}, code, candidates...)
 }
 
-// suggest returns the candidate closest to name, within two edits, or one
-// for a name of four characters or fewer, when no other candidate is as
-// close. It returns "" otherwise.
-func suggest(name string, candidates []string) string {
+// nodeAt returns the node of type T at location in tree.
+func nodeAt[T ast.Node](tree *parser.Tree, location file.Location) (T, bool) {
+	for _, node := range nodesOf[T](&tree.Node) {
+		if node.Location() == location {
+			return node, true
+		}
+	}
+
+	var zero T
+
+	return zero, false
+}
+
+// memberAt returns the string-keyed member access whose key, or itself, is
+// at location in tree.
+func memberAt(tree *parser.Tree, location file.Location) (*ast.MemberNode, bool) {
+	for _, member := range nodesOf[*ast.MemberNode](&tree.Node) {
+		if _, ok := member.Property.(*ast.StringNode); ok && (member.Property.Location() == location || member.Location() == location) {
+			return member, true
+		}
+	}
+
+	return nil, false
+}
+
+func keys[V any](m map[string]V) []string {
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+
+	return names
+}
+
+// suggestions returns the candidate closest to name, within two edits, or
+// one for a name of four characters or fewer, when no other candidate is as
+// close. It returns nil otherwise.
+func suggestions(name string, candidates []string) []string {
 	limit := 2
 	if utf8.RuneCountInString(name) <= 4 {
 		limit = 1
@@ -235,10 +142,10 @@ func suggest(name string, candidates []string) string {
 	}
 
 	if tie || bestDistance > limit {
-		return ""
+		return nil
 	}
 
-	return best
+	return []string{best}
 }
 
 // distance is the optimal string alignment distance between a and b: the

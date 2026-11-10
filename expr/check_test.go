@@ -6,24 +6,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSuggest(t *testing.T) {
+func TestSuggestions(t *testing.T) {
 	testCases := []struct {
 		name       string
 		input      string
 		candidates []string
-		expected   string
+		expected   []string
 	}{
 		{
 			name:       "Swap_OneEdit",
 			input:      "stauts_code",
 			candidates: []string{"status_code", "body"},
-			expected:   "status_code",
+			expected:   []string{"status_code"},
 		},
 		{
 			name:       "TwoEdits_Suggested",
 			input:      "verzion",
 			candidates: []string{"version", "verified"},
-			expected:   "version",
+			expected:   []string{"version"},
 		},
 		{
 			name:       "ThreeEdits_NoSuggestion",
@@ -34,7 +34,7 @@ func TestSuggest(t *testing.T) {
 			name:       "ShortName_TwoEdits_NoSuggestion",
 			input:      "bdy",
 			candidates: []string{"body"},
-			expected:   "body",
+			expected:   []string{"body"},
 		},
 		{
 			name:       "ShortName_OverOneEdit_NoSuggestion",
@@ -50,7 +50,7 @@ func TestSuggest(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			assert.Equal(t, testCase.expected, suggest(testCase.input, testCase.candidates))
+			assert.Equal(t, testCase.expected, suggestions(testCase.input, testCase.candidates))
 		})
 	}
 }

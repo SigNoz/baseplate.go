@@ -9,22 +9,22 @@ import (
 	"github.com/expr-lang/expr/parser"
 )
 
-// lint checks tree against the limits of the program's Env that upstream
-// expr doesn't check itself.
-func (p *Program) lint(tree *parser.Tree) error {
-	if p.env.nesting > 0 {
-		if err := p.lintNesting(tree); err != nil {
+// lint checks tree against the limits of env that upstream expr doesn't
+// check itself, reporting errors on s.
+func lint(tree *parser.Tree, env Env, s *source) error {
+	if env.nesting > 0 {
+		if err := lintNesting(tree, env.nesting, s); err != nil {
 			return err
 		}
 	}
 
-	if p.env.pattern > 0 {
+	if env.pattern > 0 {
 		for _, binary := range nodesOf[*ast.BinaryNode](&tree.Node) {
 			if binary.Operator != "matches" {
 				continue
 			}
 
-			if err := p.lintPattern(binary.Right); err != nil {
+			if err := lintPattern(binary.Right, env.pattern, s); err != nil {
 				return err
 			}
 		}
@@ -36,7 +36,7 @@ func (p *Program) lint(tree *parser.Tree) error {
 // lintNesting rejects a predicate whose list functions nest deeper than the
 // limit. A predicate's depth is one more than the deepest predicate inside
 // it.
-func (p *Program) lintNesting(tree *parser.Tree) error {
+func lintNesting(tree *parser.Tree, limit uint, s *source) error {
 	depths := map[*ast.PredicateNode]uint{}
 
 	var depth func(predicate *ast.PredicateNode) uint
@@ -56,10 +56,10 @@ func (p *Program) lintNesting(tree *parser.Tree) error {
 	}
 
 	for _, predicate := range nodesOf[*ast.PredicateNode](&tree.Node) {
-		if d := depth(predicate); d > p.env.nesting {
-			return p.source.positionError(&file.Error{
+		if d := depth(predicate); d > limit {
+			return s.positionError(&file.Error{
 				Location: predicate.Location(),
-				Message:  fmt.Sprintf("list functions nest %d deep, expected at most %d", d, p.env.nesting),
+				Message:  fmt.Sprintf("list functions nest %d deep, expected at most %d", d, limit),
 			}, CodeNestingTooDeep)
 		}
 	}
@@ -70,7 +70,7 @@ func (p *Program) lintNesting(tree *parser.Tree) error {
 // lintPattern requires the pattern of a matches operator to be a string
 // literal within the length limit. Upstream expr checks that a literal
 // pattern is a valid regular expression.
-func (p *Program) lintPattern(pattern ast.Node) error {
+func lintPattern(pattern ast.Node, limit uint, s *source) error {
 	literal, ok := pattern.(*ast.StringNode)
 
 	var message string
@@ -78,13 +78,13 @@ func (p *Program) lintPattern(pattern ast.Node) error {
 	switch {
 	case !ok:
 		message = "pattern is not a string literal, expected a quoted pattern"
-	case uint(utf8.RuneCountInString(literal.Value)) > p.env.pattern:
-		message = fmt.Sprintf("pattern is %d characters, expected at most %d", utf8.RuneCountInString(literal.Value), p.env.pattern)
+	case uint(utf8.RuneCountInString(literal.Value)) > limit:
+		message = fmt.Sprintf("pattern is %d characters, expected at most %d", utf8.RuneCountInString(literal.Value), limit)
 	default:
 		return nil
 	}
 
-	return p.source.positionError(&file.Error{
+	return s.positionError(&file.Error{
 		Location: pattern.Location(),
 		Message:  message,
 	}, CodePatternInvalid)
