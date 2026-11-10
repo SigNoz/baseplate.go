@@ -43,7 +43,7 @@ type Program struct {
 //
 // It returns a [github.com/SigNoz/baseplate.go/errors.TypeInvalidInput]
 // error with [CodeSyntaxInvalid] when src doesn't parse,
-// [CodeExpressionTooLarge] when it has too many nodes, [CodeTypeInvalid] for
+// [CodeNodesExceeded] when it has too many nodes, [CodeTypeInvalid] for
 // a type error and [CodeResultNotBool] when its result is known not to be a
 // bool. An error at a place in src wraps a [*PositionError].
 func Compile(src string, env Env) (*Program, error) {
@@ -144,14 +144,14 @@ func (p *Program) Run(vars any) (any, error) {
 	}
 
 	if p.env.dynamic {
-		env, ok := vars.(map[string]any)
+		byName, ok := vars.(map[string]any)
 		if !ok {
 			return nil, errors.Newf(errors.TypeInvalidInput, CodeRunFailed, "vars are %T, expected map[string]any", vars)
 		}
 
 		var err error
 
-		program, err = p.programFor(env)
+		program, err = p.programFor(byName)
 		if err != nil {
 			return nil, err
 		}
@@ -172,17 +172,17 @@ func (p *Program) Run(vars any) (any, error) {
 	return out, nil
 }
 
-// programFor returns the program typed against the top-level types of env,
-// compiling it on first use.
-func (p *Program) programFor(env map[string]any) (*vm.Program, error) {
-	key := p.shape(env)
+// programFor returns the program typed against the top-level types of
+// vars, compiling it on first use.
+func (p *Program) programFor(vars map[string]any) (*vm.Program, error) {
+	key := p.shape(vars)
 	if cached, ok := p.shapes.Load(key); ok {
 		program, _ := cached.(*vm.Program)
 
 		return program, nil
 	}
 
-	program, err := p.build(env)
+	program, err := p.build(vars)
 	if err != nil {
 		return nil, err
 	}
@@ -196,13 +196,13 @@ func (p *Program) programFor(env map[string]any) (*vm.Program, error) {
 	return program, nil
 }
 
-// shape is the top-level types, in env, of the names the expression
+// shape is the top-level types, in vars, of the names the expression
 // references: absent, nil or the value's type.
-func (p *Program) shape(env map[string]any) string {
+func (p *Program) shape(vars map[string]any) string {
 	names := p.names
 	if p.allNames {
 		names = slices.Sorted(func(yield func(string) bool) {
-			for name := range env {
+			for name := range vars {
 				if !yield(name) {
 					return
 				}
@@ -214,7 +214,7 @@ func (p *Program) shape(env map[string]any) string {
 	for _, name := range names {
 		key = append(key, name...)
 
-		value, ok := env[name]
+		value, ok := vars[name]
 
 		switch {
 		case !ok:
@@ -233,15 +233,15 @@ func (p *Program) shape(env map[string]any) string {
 }
 
 // build compiles the upstream text as expr.Compile does. Only a
-// [TypedDynamic] program passes an env.
-func (p *Program) build(env map[string]any) (*vm.Program, error) {
+// [TypedDynamic] program passes vars.
+func (p *Program) build(vars map[string]any) (*vm.Program, error) {
 	var options []upstream.Option
 
 	switch {
 	case p.env.static:
 		options = append(options, upstream.Env(p.env.vars))
 	case p.env.dynamic:
-		options = append(options, upstream.Env(env), upstream.AllowUndefinedVariables())
+		options = append(options, upstream.Env(vars), upstream.AllowUndefinedVariables())
 	default:
 		options = append(options, upstream.AllowUndefinedVariables())
 	}
@@ -321,7 +321,7 @@ func (p *Program) build(env map[string]any) (*vm.Program, error) {
 // parseError gives an error from the parser its code.
 func (p *Program) parseError(err error) error {
 	if strings.Contains(err.Error(), "exceeds maximum allowed nodes") {
-		return p.source.positionError(err, CodeExpressionTooLarge)
+		return p.source.positionError(err, CodeNodesExceeded)
 	}
 
 	return p.source.positionError(err, CodeSyntaxInvalid)

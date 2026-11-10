@@ -472,16 +472,16 @@ func TestEnv_LimitNodes(t *testing.T) {
 		expectedCode errors.Code
 	}{
 		{
-			name:         "Nodes_OverLimit_ExpressionTooLarge",
+			name:         "Nodes_OverLimit_NodesExceeded",
 			env:          tHTTPEnv().LimitNodes(2),
 			src:          `status_code > 0 AND redirects > 0`,
-			expectedCode: CodeExpressionTooLarge,
+			expectedCode: CodeNodesExceeded,
 		},
 		{
 			name:         "Nodes_OverLimit_UntypedExpressionTooLarge",
 			env:          Untyped().LimitNodes(2),
 			src:          `a > 0 AND b > 0`,
-			expectedCode: CodeExpressionTooLarge,
+			expectedCode: CodeNodesExceeded,
 		},
 	}
 

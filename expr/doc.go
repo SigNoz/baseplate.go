@@ -1,9 +1,9 @@
 // Package expr compiles and runs [github.com/expr-lang/expr] expressions,
-// with SQL-style spellings for its operators.
+// with SQL-style aliases for its operators.
 //
 // # Language
 //
-// The language is expr's, with these spellings added:
+// The language is expr's, with these aliases added:
 //
 //	env = "prod" AND region IN ["eu", "us"]
 //	NOT (service.name CONTAINS "test") OR host REGEXP "^web-"
@@ -36,10 +36,11 @@
 // nil result is false.
 //
 // A TypedDynamic program is typed against the top-level types of the
-// variables it runs with, compiled once for each such shape, so a mistake
-// shows as [CodeTypeInvalid] when it runs. Member access is nil-safe: a.b
-// is nil when a is missing or isn't a map. A nil result is an error. [Nest]
-// turns flat dotted keys into the nested maps a TypedDynamic program reads.
+// variables it runs with, compiled once for each set of those types, so a
+// mistake shows as [CodeTypeInvalid] when it runs. Member access is
+// nil-safe: a.b is nil when a is missing or isn't a map. A nil result is an
+// error. [Nest] turns flat dotted keys into the nested maps a TypedDynamic
+// program reads.
 //
 // A TypedStatic program is compiled once against the declared variables,
 // so an unknown name, a misspelled field or a wrong type is a compile error.
