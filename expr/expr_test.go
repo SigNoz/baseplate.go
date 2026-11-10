@@ -1438,7 +1438,7 @@ func TestProgram_Bool(t *testing.T) {
 			env:             TypedDynamic(),
 			vars:            map[string]string{"env": "prod"},
 			expectedCode:    CodeRunFailed,
-			expectedMessage: "variables are map[string]string, expected map[string]any",
+			expectedMessage: "vars are map[string]string, expected map[string]any",
 		},
 	}
 
