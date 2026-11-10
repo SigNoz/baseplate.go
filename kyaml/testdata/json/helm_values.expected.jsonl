@@ -1,0 +1,1 @@
+{"collector":{"config":{"processors":{"memory_limiter":{"limit_mib":3686}}},"resources":{"requests":{"memory":"4Gi"}}},"database":{"enabled":true,"persistence":{"size":"200Gi"}},"global":{"storageClass":"fast"}}

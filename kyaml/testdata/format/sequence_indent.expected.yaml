@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: juliet
+  finalizers:
+  - example.com/first
+  - example.com/second
+data:
+  key: value

@@ -1,0 +1,27 @@
+metadata:
+  labels:
+    app.kubernetes.io/version: "25.12.5"
+    app.kubernetes.io/name: database
+  name: database
+apiVersion: example.com/v1
+kind: DatabaseInstallation
+spec:
+  templates:
+    volumeClaimTemplates:
+    - spec:
+        resources:
+          requests:
+            storage: 100Gi
+        accessModes:
+        - ReadWriteOnce
+      name: data-0
+  configuration:
+    clusters:
+    - layout:
+        replicasCount: 2
+        shards:
+        - replicas: # shard 0
+          - files:
+              conf.d/keeper.xml: | # 0-0
+                <keeper><host>keeper-0.example.internal</host><port>2181</port></keeper>
+      name: cluster

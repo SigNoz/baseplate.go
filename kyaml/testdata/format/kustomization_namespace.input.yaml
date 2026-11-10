@@ -1,0 +1,11 @@
+namespace: alpha
+resources:
+- ../../base/myapp
+- configmap.yaml
+kind: Kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+patches:
+- path: deployment.yaml
+images:
+- newTag: v1.2.3
+  name: example.com/myapp

@@ -1,0 +1,29 @@
+# Deployment for myapp.
+spec:
+  template:
+    spec:
+      containers:
+      - resources:
+          requests:
+            memory: 2Gi
+            cpu: 500m
+        image: example.com/myapp:v1.2.3
+        name: myapp # main container
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - value: info
+          name: LOG_LEVEL
+    metadata:
+      labels:
+        app.kubernetes.io/name: myapp
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: myapp
+metadata:
+  namespace: alpha
+  name: myapp
+kind: Deployment
+apiVersion: apps/v1
