@@ -3,6 +3,7 @@ package expr
 import (
 	"reflect"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/expr-lang/expr/builtin"
@@ -25,18 +26,18 @@ var (
 	}
 )
 
-// reserved are the top-level names a variable can't take: what the language
+// reserved are the names a top-level var can't take: what the language
 // itself gives meaning to.
 var reserved = []string{"true", "false", "nil", "$env"}
 
-// checkVars returns an error when vars can't declare the variables of a
+// checkVars returns an error when vars can't declare the vars of a
 // [TypedStatic] program.
 func checkVars(vars any) error {
 	t := reflect.TypeOf(vars)
 
 	switch {
 	case t == nil:
-		return errors.New(errors.TypeInvalidInput, CodeVarsInvalid, "variables are nil, expected a struct or a map[string]any")
+		return errors.New(errors.TypeInvalidInput, CodeVarsInvalid, "vars are nil, expected a struct or a map[string]any")
 	case t.Kind() == reflect.Struct:
 		return checkStruct(t, "", true)
 	case t == reflect.TypeFor[map[string]any]():
@@ -50,7 +51,7 @@ func checkVars(vars any) error {
 
 			element := value.MapIndex(key).Elem()
 			if !element.IsValid() {
-				return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "variable %s is nil, expected a typed zero value", name)
+				return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "var %s is nil, expected a typed zero value", name)
 			}
 
 			if err := checkType(element.Type(), name); err != nil {
@@ -61,11 +62,11 @@ func checkVars(vars any) error {
 		return nil
 	}
 
-	return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "variables are %s, expected a struct or a map[string]any", t)
+	return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "vars are %s, expected a struct or a map[string]any", t)
 }
 
-// checkType returns an error when a variable at path has a type outside the
-// ones a [TypedStatic] program supports.
+// checkType returns an error when the var or field at path has a type
+// outside the ones a [TypedStatic] program supports.
 func checkType(t reflect.Type, path string) error {
 	switch {
 	case slices.Contains(leafTypes, t):
@@ -80,7 +81,7 @@ func checkType(t reflect.Type, path string) error {
 		return checkStruct(t, path, false)
 	}
 
-	return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "variable %s is %s, expected int, float64, string, bool, time.Duration, time.Time, any, a slice, a map with string keys or a struct", path, t)
+	return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "%s is %s, expected int, float64, string, bool, time.Duration, time.Time, any, a slice, a map with string keys or a struct", subject(path), t)
 }
 
 // checkStruct checks the fields of a struct at path, top being the
@@ -89,10 +90,10 @@ func checkType(t reflect.Type, path string) error {
 func checkStruct(t reflect.Type, path string, top bool) error {
 	if t.NumMethod() > 0 || reflect.PointerTo(t).NumMethod() > 0 {
 		if top {
-			return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "variables are %s, which has methods, expected a struct without exported methods", t)
+			return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "vars are %s, which has methods, expected a struct without exported methods", t)
 		}
 
-		return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "variable %s is %s, which has methods, expected a struct without exported methods", path, t)
+		return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "%s is %s, which has methods, expected a struct without exported methods", subject(path), t)
 	}
 
 	names := map[string]bool{}
@@ -100,7 +101,7 @@ func checkStruct(t reflect.Type, path string, top bool) error {
 	for _, field := range fieldsOf(t) {
 		fieldPath := join(path, field.name)
 		if names[field.name] {
-			return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "variable %s is declared twice, expected unique names", fieldPath)
+			return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "%s is declared twice, expected unique names", subject(fieldPath))
 		}
 
 		names[field.name] = true
@@ -117,17 +118,17 @@ func checkStruct(t reflect.Type, path string, top bool) error {
 	return nil
 }
 
-// checkName returns an error when name can't name a variable: it must lex
+// checkName returns an error when name can't name a var or field: it must lex
 // as one identifier that the shim leaves alone, and a top-level name must
 // not take a builtin function's or the language's own name.
 func checkName(name, path string, top bool) error {
 	tokens, err := lexer.Lex(file.NewSource(name))
 	if err != nil || len(tokens) != 2 || tokens[0].Kind != lexer.Identifier || tokens[0].Value != name || aliases[name] != "" {
-		return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "variable %s has the name %q, expected one identifier other than AND, OR, NOT, IN, CONTAINS, REGEXP or regexp", path, name)
+		return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "%s has the name %q, expected one identifier other than AND, OR, NOT, IN, CONTAINS, REGEXP or regexp", subject(path), name)
 	}
 
 	if top && (slices.Contains(builtin.Names, name) || slices.Contains(reserved, name)) {
-		return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "variable %s takes the name of a builtin, expected another name", path)
+		return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "var %s takes the name of a builtin, expected another name", path)
 	}
 
 	return nil
@@ -152,4 +153,14 @@ func join(path, name string) string {
 	}
 
 	return path + "." + name
+}
+
+// subject names what is at path in an error: a var at the top level, a
+// field in a struct.
+func subject(path string) string {
+	if strings.Contains(path, ".") {
+		return "field " + path
+	}
+
+	return "var " + path
 }
