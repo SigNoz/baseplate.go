@@ -24,7 +24,7 @@ func Format(y YAML) (YAML, error) {
 
 	err := kio.Pipeline{
 		Inputs:  []kio.Reader{&kio.ByteReader{Reader: bytes.NewReader(y)}},
-		Filters: formatFilters(),
+		Filters: []kio.Filter{kustomizefilters.FormatFilter{}, filters.KustomizationOrder{}},
 		Outputs: []kio.Writer{kio.ByteWriter{Writer: &out}},
 	}.Execute()
 	if err != nil {
@@ -32,10 +32,4 @@ func Format(y YAML) (YAML, error) {
 	}
 
 	return out.Bytes(), nil
-}
-
-// formatFilters returns the filters Format runs, in order, on every
-// document.
-func formatFilters() []kio.Filter {
-	return []kio.Filter{kustomizefilters.FormatFilter{}, filters.KustomizationOrder{}}
 }
