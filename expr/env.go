@@ -9,15 +9,15 @@ import (
 // Env is how an expression's names are typed, the patches its programs
 // apply and the limits they keep to. The zero Env is [Untyped].
 type Env struct {
-	dynamic       bool
-	static        bool
-	vars          any
-	varsErr       error
-	patches       []ast.Visitor
-	nesting       uint
-	patternLength uint
-	nodes         uint
-	memory        uint
+	dynamic bool
+	static  bool
+	vars    any
+	varsErr error
+	patches []ast.Visitor
+	nesting uint
+	pattern uint
+	nodes   uint
+	memory  uint
 }
 
 // Untyped returns an Env in which any name is allowed and nothing is typed
@@ -92,13 +92,13 @@ func (e Env) LimitNesting(n uint) Env {
 	return e
 }
 
-// LimitPatternLength returns a copy of e whose programs require the pattern
+// LimitPattern returns a copy of e whose programs require the pattern
 // of every REGEXP (or matches) to be a valid string literal of at most n
 // characters, so patterns compile once. Zero, the default, sets no limit.
 // [Compile] returns a [github.com/SigNoz/baseplate.go/errors.TypeInvalidInput]
 // error with [CodePatternInvalid] for a pattern that breaks it.
-func (e Env) LimitPatternLength(n uint) Env {
-	e.patternLength = n
+func (e Env) LimitPattern(n uint) Env {
+	e.pattern = n
 
 	return e
 }

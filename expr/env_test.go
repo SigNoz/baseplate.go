@@ -219,7 +219,7 @@ type tHTTP struct {
 }
 
 func tHTTPEnv() Env {
-	return TypedStatic(tHTTP{}).LimitNesting(1).LimitPatternLength(256)
+	return TypedStatic(tHTTP{}).LimitNesting(1).LimitPattern(256)
 }
 
 func TestTypedStatic_Assertions(t *testing.T) {

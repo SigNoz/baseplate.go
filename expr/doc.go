@@ -49,7 +49,7 @@
 //
 // # Limits
 //
-// [Env.LimitNesting], [Env.LimitPatternLength], [Env.LimitNodes] and
+// [Env.LimitNesting], [Env.LimitPattern], [Env.LimitNodes] and
 // [Env.LimitMemory] bound what a program can cost: how deep list functions
 // nest, how long a REGEXP pattern is, how many nodes the program has and
 // how much it allocates in a run. Each limit is unset by default.
