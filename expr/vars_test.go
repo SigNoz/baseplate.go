@@ -25,6 +25,14 @@ func TestCheckVars(t *testing.T) {
 			},
 		},
 		{
+			name: "AnyGoType_Accepted",
+			vars: struct {
+				Count int64
+				Limit *int
+				Codes map[int]string
+			}{},
+		},
+		{
 			name: "NestedBuiltinName_Accepted",
 			vars: struct {
 				TLS struct {
@@ -38,19 +46,9 @@ func TestCheckVars(t *testing.T) {
 			expectedMessage: "vars are nil, expected a struct or a map[string]any",
 		},
 		{
-			name:            "Int64Field_VarsInvalid",
-			vars:            struct{ Count int64 }{},
-			expectedMessage: "var Count is int64, expected int, float64, string, bool, time.Duration, time.Time, any, a slice, a map with string keys or a struct",
-		},
-		{
-			name:            "PointerField_VarsInvalid",
-			vars:            struct{ Limit *int }{},
-			expectedMessage: "var Limit is *int, expected int, float64, string, bool, time.Duration, time.Time, any, a slice, a map with string keys or a struct",
-		},
-		{
-			name:            "IntKeyedMap_VarsInvalid",
-			vars:            struct{ Codes map[int]string }{},
-			expectedMessage: "var Codes is map[int]string, expected int, float64, string, bool, time.Duration, time.Time, any, a slice, a map with string keys or a struct",
+			name:            "NotStructOrMap_VarsInvalid",
+			vars:            []string{},
+			expectedMessage: "vars are []string, expected a struct or a map[string]any",
 		},
 		{
 			name: "BuiltinName_VarsInvalid",
@@ -74,16 +72,22 @@ func TestCheckVars(t *testing.T) {
 			expectedMessage: `var content-type has the name "content-type", expected one identifier other than AND, OR, NOT, IN, CONTAINS, REGEXP or regexp`,
 		},
 		{
-			name:            "TypeWithMethods_VarsInvalid",
-			vars:            time.Time{},
-			expectedMessage: "vars are time.Time, which has methods, expected a struct without exported methods",
+			name: "NestedAliasName_VarsInvalid",
+			vars: struct {
+				Answers []struct {
+					In string `expr:"IN"`
+				} `expr:"answers"`
+			}{},
+			expectedMessage: `field answers.IN has the name "IN", expected one identifier other than AND, OR, NOT, IN, CONTAINS, REGEXP or regexp`,
 		},
 		{
-			name: "MapValueNil_VarsInvalid",
+			name: "MapValueAliasName_VarsInvalid",
 			vars: map[string]any{
-				"status": nil,
+				"tls": struct {
+					Or string `expr:"OR"`
+				}{},
 			},
-			expectedMessage: "var status is nil, expected a typed zero value",
+			expectedMessage: `field tls.OR has the name "OR", expected one identifier other than AND, OR, NOT, IN, CONTAINS, REGEXP or regexp`,
 		},
 	}
 
