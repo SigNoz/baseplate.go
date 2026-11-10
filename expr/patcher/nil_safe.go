@@ -28,12 +28,10 @@ func (NilSafe) Visit(node *ast.Node) {
 		return
 	}
 
-	ast.Patch(node,
-		&ast.CallNode{
-			Callee:    &ast.IdentifierNode{Value: nilSafeMemberFunc},
-			Arguments: []ast.Node{member.Node, member.Property},
-		},
-	)
+	ast.Patch(node, &ast.CallNode{
+		Callee:    &ast.IdentifierNode{Value: nilSafeMemberFunc},
+		Arguments: []ast.Node{member.Node, member.Property},
+	})
 }
 
 // Function returns the name and the body of the function the rewritten
