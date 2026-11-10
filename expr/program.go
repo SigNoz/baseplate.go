@@ -33,10 +33,10 @@ type Program struct {
 
 	program *vm.Program // Untyped.
 
-	names   []string // TypedDynamic: the top-level names the expression references, sorted.
-	usesEnv bool     // TypedDynamic: the expression reads $env, so every name counts.
-	shapes  sync.Map
-	count   atomic.Int64
+	names    []string // TypedDynamic: the top-level names the expression references, sorted.
+	allNames bool     // TypedDynamic: $env or a caller's patch may read any name, so every name counts.
+	shapes   sync.Map
+	count    atomic.Int64
 }
 
 // Compile compiles an expression whose result is a bool.
@@ -82,10 +82,12 @@ func compile(text string, env Env, boolean bool) (*Program, error) {
 		return nil, p.parseError(err)
 	}
 
+	p.allNames = len(env.patches) > 0
+
 	visit(&tree.Node, func(node *ast.Node) {
 		switch n := (*node).(type) {
 		case *ast.IdentifierNode:
-			p.usesEnv = p.usesEnv || n.Value == "$env"
+			p.allNames = p.allNames || n.Value == "$env"
 			p.names = append(p.names, n.Value)
 		case *ast.BuiltinNode:
 			p.names = append(p.names, n.Name)
@@ -183,7 +185,7 @@ func (p *Program) programFor(vars map[string]any) (*vm.Program, error) {
 // references: absent, nil or the value's type.
 func (p *Program) shape(vars map[string]any) string {
 	names := p.names
-	if p.usesEnv {
+	if p.allNames {
 		names = slices.Sorted(func(yield func(string) bool) {
 			for name := range vars {
 				if !yield(name) {
@@ -224,6 +226,10 @@ func (p *Program) build(vars map[string]any) (*vm.Program, error) {
 	}
 
 	options = append(options, upstream.AllowUndefinedVariables())
+
+	for _, patch := range p.env.patches {
+		options = append(options, upstream.Patch(patch))
+	}
 
 	if p.env.typed {
 		nilSafe := patcher.NilSafe{}

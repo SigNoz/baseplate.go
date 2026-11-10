@@ -1,8 +1,16 @@
 package expr
 
-// Env is how an expression's names are typed. The zero Env is [Untyped].
+import (
+	"slices"
+
+	"github.com/expr-lang/expr/ast"
+)
+
+// Env is how an expression's names are typed, and the patches its programs
+// apply. The zero Env is [Untyped].
 type Env struct {
-	typed bool
+	typed   bool
+	patches []ast.Visitor
 }
 
 // Untyped returns an Env in which any name is allowed and nothing is typed
@@ -33,4 +41,22 @@ func Untyped() Env {
 //	plan                 error (CodeResultNotBool): the result is nil
 func TypedDynamic() Env {
 	return Env{typed: true}
+}
+
+// Patch returns a copy of e whose programs apply v when they compile. A
+// patch rewrites the syntax tree in place, as those in
+// [github.com/SigNoz/baseplate.go/expr/patcher] do. Patches run in the order
+// they were added, and before the nil-safe patch of a [TypedDynamic]
+// program, so they see member access as written.
+//
+// An [Untyped] program runs each patch once, in [Compile]. A [TypedDynamic]
+// program runs it again for each new set of top-level variable types, so a
+// patch that keeps state sees every tree it rewrites. Since a patch can
+// make the program read any name, a TypedDynamic program with patches
+// compiles again when the type of any of its variables changes, not only
+// of the names it was written with.
+func (e Env) Patch(v ast.Visitor) Env {
+	e.patches = append(slices.Clone(e.patches), v)
+
+	return e
 }
