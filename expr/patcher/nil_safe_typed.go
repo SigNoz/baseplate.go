@@ -3,9 +3,7 @@ package patcher
 import (
 	"reflect"
 
-	upstream "github.com/expr-lang/expr/ast"
-
-	"github.com/SigNoz/baseplate.go/expr/ast"
+	"github.com/expr-lang/expr/ast"
 )
 
 const nilSafeTypedMemberFunc = "__nilSafeTypedMember"
@@ -38,7 +36,7 @@ func (NilSafeTyped) Visit(node *ast.Node) {
 		return
 	}
 
-	upstream.Patch(node, &ast.CallNode{
+	ast.Patch(node, &ast.CallNode{
 		Callee:    &ast.IdentifierNode{Value: nilSafeTypedMemberFunc},
 		Arguments: []ast.Node{member.Node, member.Property},
 	})
