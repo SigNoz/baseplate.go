@@ -3,9 +3,10 @@ package expr_test
 import (
 	"fmt"
 
+	"github.com/expr-lang/expr/ast"
+
 	"github.com/SigNoz/baseplate.go/errors"
 	"github.com/SigNoz/baseplate.go/expr"
-	"github.com/expr-lang/expr/ast"
 )
 
 func Example() {

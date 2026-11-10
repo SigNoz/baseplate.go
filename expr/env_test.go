@@ -3,11 +3,11 @@ package expr
 import (
 	"testing"
 
+	"github.com/expr-lang/expr/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/SigNoz/baseplate.go/errors"
-	"github.com/expr-lang/expr/ast"
 )
 
 // tRename renames identifier from to identifier to, and counts the trees it
