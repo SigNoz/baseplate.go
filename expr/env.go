@@ -50,11 +50,11 @@ func TypedDynamic() Env {
 // program, so they see member access as written.
 //
 // An [Untyped] program runs each patch once, in [Compile]. A [TypedDynamic]
-// program runs it again for each new shape of variables, so a patch that
-// keeps state sees every tree it rewrites. Since a patch can make the
-// program read any name, a TypedDynamic program with patches tells shapes
-// apart by the types of all its variables, not only the names it was
-// written with.
+// program runs it again for each new set of top-level variable types, so a
+// patch that keeps state sees every tree it rewrites. Since a patch can
+// make the program read any name, a TypedDynamic program with patches
+// compiles again when the type of any of its variables changes, not only
+// of the names it was written with.
 func (e Env) Patch(v ast.Visitor) Env {
 	e.patches = append(slices.Clone(e.patches), v)
 
