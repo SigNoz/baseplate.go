@@ -16,3 +16,17 @@ func (v visitor) Visit(node *ast.Node) {
 func visit(root *ast.Node, fn func(node *ast.Node)) {
 	ast.Walk(root, visitor(fn))
 }
+
+// nodesOf returns every node of type T in the tree at root, children before
+// their parent.
+func nodesOf[T ast.Node](root *ast.Node) []T {
+	var found []T
+
+	visit(root, func(node *ast.Node) {
+		if n, ok := (*node).(T); ok {
+			found = append(found, n)
+		}
+	})
+
+	return found
+}

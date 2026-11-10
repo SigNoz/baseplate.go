@@ -2,6 +2,7 @@ package expr
 
 import (
 	"testing"
+	"time"
 
 	"github.com/expr-lang/expr/ast"
 	"github.com/stretchr/testify/assert"
@@ -183,6 +184,353 @@ func TestEnv_Patch_TypedDynamicShapes(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expected, got)
+		})
+	}
+}
+
+type tCertificate struct {
+	SubjectCN string        `expr:"subject_cn"`
+	SANs      []string      `expr:"sans"`
+	Remaining time.Duration `expr:"remaining"`
+	NotAfter  time.Time     `expr:"not_after"`
+}
+
+type tTLS struct {
+	Used        bool         `expr:"used"`
+	Version     string       `expr:"version"`
+	Certificate tCertificate `expr:"certificate"`
+}
+
+type tPhases struct {
+	Wait time.Duration `expr:"wait"`
+}
+
+type tHTTP struct {
+	StatusCode   int               `expr:"status_code"`
+	HTTPVersion  string            `expr:"http_version"`
+	Headers      map[string]string `expr:"headers"`
+	Body         string            `expr:"body"`
+	BodySize     int               `expr:"body_size"`
+	JSON         any               `expr:"json"`
+	Redirects    int               `expr:"redirects"`
+	ResponseTime time.Duration     `expr:"response_time"`
+	Phases       tPhases           `expr:"phases"`
+	TLS          tTLS              `expr:"tls"`
+}
+
+func tHTTPEnv() Env {
+	return TypedStatic(tHTTP{}).LimitNesting(1).LimitPattern(256)
+}
+
+func TestTypedStatic_Assertions(t *testing.T) {
+	testCases := []struct {
+		name string
+		src  string
+	}{
+		{name: "StatusInSet", src: `status_code IN [200, 204]`},
+		{name: "HTTPVersionInSet", src: `http_version IN ["1.1", "2"]`},
+		{name: "MustBeTLS", src: `tls.used`},
+		{name: "MustNotBeTLS", src: `NOT tls.used`},
+		{name: "BodyMustNotMatch", src: `NOT (body REGEXP "maintenance")`},
+		{name: "BodyContains", src: `body CONTAINS "ok"`},
+		{name: "BodyDoesNotContain", src: `NOT (body CONTAINS "error")`},
+		{name: "BodyMustMatch", src: `body REGEXP "version: [0-9]+"`},
+		{name: "JSONFieldEquals", src: `json.data.state = "ready"`},
+		{name: "EveryItemHealthy", src: `all(json.items, .ok)`},
+		{name: "SomeItemHasField", src: `any(json.items, .id = "x")`},
+		{name: "HeaderMustNotMatch_MissingAllowed", src: `NOT (headers["server"] REGEXP "nginx/1\\.1")`},
+		{name: "HeaderMustNotMatch_MissingFails", src: `"server" IN headers AND NOT (headers["server"] REGEXP "nginx/1\\.1")`},
+		{name: "HeaderMustMatch", src: `headers["content-type"] startsWith "application/json"`},
+		{name: "BodySizeRange", src: `body_size >= 10 AND body_size <= 5000`},
+		{name: "Latency", src: `response_time < duration("800ms")`},
+		{name: "PhaseLatency", src: `phases.wait < duration("300ms")`},
+		{name: "CertificateExpiry", src: `tls.certificate.remaining > duration("336h")`},
+		{name: "TLSVersion", src: `tls.version = "1.3"`},
+		{name: "Redirects", src: `redirects <= 1`},
+		{name: "ContentLengthFromHeader", src: `int(headers["content-length"]) > 0`},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := Compile(testCase.src, tHTTPEnv())
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestTypedStatic(t *testing.T) {
+	vars := tHTTP{
+		StatusCode:  200,
+		HTTPVersion: "2",
+		Headers: map[string]string{
+			"content-type": "application/json",
+		},
+		Body: "ok version: 3",
+		JSON: map[string]any{
+			"state": "ok",
+			"items": []any{
+				map[string]any{"ok": true},
+			},
+		},
+		ResponseTime: 120 * time.Millisecond,
+		TLS: tTLS{
+			Used:    true,
+			Version: "1.3",
+			Certificate: tCertificate{
+				Remaining: 400 * time.Hour,
+			},
+		},
+	}
+
+	testCases := []struct {
+		name          string
+		src           string
+		expected      bool
+		expectedError *tError
+	}{
+		{
+			name:     "DeclaredFields_Match",
+			src:      `status_code = 200 AND tls.version = "1.3"`,
+			expected: true,
+		},
+		{
+			name: "StatusAsString_TypeInvalid",
+			src:  `status_code = "200"`,
+			expectedError: &tError{
+				code:    CodeTypeInvalid,
+				message: "invalid operation: = (mismatched types int and string)",
+				from:    12,
+				to:      13,
+				line:    1,
+				column:  13,
+			},
+		},
+		{
+			name: "MisspeltName_TypeInvalid",
+			src:  `stauts_code = 200`,
+			expectedError: &tError{
+				code:    CodeTypeInvalid,
+				message: "unknown name stauts_code",
+				from:    0,
+				to:      11,
+				line:    1,
+				column:  1,
+			},
+		},
+		{
+			name: "MisspeltField_TypeInvalid",
+			src:  `tls.versoin = "1.3"`,
+			expectedError: &tError{
+				code:   CodeTypeInvalid,
+				line:   1,
+				from:   4,
+				to:     11,
+				column: 5,
+			},
+		},
+		{
+			name: "DurationAgainstInt_TypeInvalid",
+			src:  `response_time < 500`,
+			expectedError: &tError{
+				code:    CodeTypeInvalid,
+				message: "invalid operation: < (mismatched types time.Duration and int)",
+				from:    14,
+				to:      15,
+				line:    1,
+				column:  15,
+			},
+		},
+		{
+			name:     "DurationAgainstDuration_Matches",
+			src:      `response_time < duration("500ms")`,
+			expected: true,
+		},
+		{
+			name:     "JSONField_Matches",
+			src:      `json.state = "ok"`,
+			expected: true,
+		},
+		{
+			name:     "MissingJSONField_IsNil",
+			src:      `json.missing = nil`,
+			expected: true,
+		},
+		{
+			name:     "MissingJSONParent_NotEqual_Matches",
+			src:      `json.a.b != "x"`,
+			expected: true,
+		},
+		{
+			name:     "MissingHeader_IsNil",
+			src:      `headers["server"] = nil`,
+			expected: true,
+		},
+		{
+			name: "MissingHeader_NotIn",
+			src:  `"server" IN headers`,
+		},
+		{
+			name: "MissingHeader_RegexpFalse",
+			src:  `headers["server"] REGEXP "nginx"`,
+		},
+		{
+			name: "MissingJSONField_ContainsFalse",
+			src:  `json.missing CONTAINS "a"`,
+		},
+		{
+			name: "IndexPastEnd_RunFailed",
+			src:  `json.items[5].ok`,
+			expectedError: &tError{
+				code:    CodeRunFailed,
+				message: "index out of range: 5 (array length is 1)",
+				from:    10,
+				to:      11,
+				line:    1,
+				column:  11,
+			},
+		},
+		{
+			name: "MissingJSONField_ResultNotBool",
+			src:  `json.missing`,
+			expectedError: &tError{
+				code: CodeResultNotBool,
+			},
+		},
+		{
+			name:     "NestedStructField_Matches",
+			src:      `tls.certificate.remaining > duration("336h")`,
+			expected: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			program, err := Compile(testCase.src, tHTTPEnv())
+			if err == nil {
+				var got bool
+
+				got, err = program.Bool(vars)
+				if err == nil {
+					require.Nil(t, testCase.expectedError)
+					assert.Equal(t, testCase.expected, got)
+
+					return
+				}
+			}
+
+			require.NotNil(t, testCase.expectedError, "unexpected error: %v", err)
+			tAssertError(t, testCase.expectedError, err)
+		})
+	}
+}
+
+func TestTypedStatic_RunVariables(t *testing.T) {
+	program, err := Compile(`status_code = 200`, tHTTPEnv())
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name          string
+		vars          any
+		expected      bool
+		expectedError *tError
+	}{
+		{
+			name:     "DeclaredType_Matches",
+			vars:     tHTTP{StatusCode: 200},
+			expected: true,
+		},
+		{
+			name: "OtherType_RunFailed",
+			vars: map[string]any{"status_code": 200},
+			expectedError: &tError{
+				code:    CodeRunFailed,
+				message: "vars are map[string]interface {}, expected expr.tHTTP",
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			got, err := program.Bool(testCase.vars)
+			if testCase.expectedError != nil {
+				tAssertError(t, testCase.expectedError, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expected, got)
+		})
+	}
+}
+
+func TestEnv_LimitNodes(t *testing.T) {
+	testCases := []struct {
+		name         string
+		env          Env
+		src          string
+		expectedCode errors.Code
+	}{
+		{
+			name:         "Nodes_OverLimit_NodesExceeded",
+			env:          tHTTPEnv().LimitNodes(2),
+			src:          `status_code > 0 AND redirects > 0`,
+			expectedCode: CodeNodesExceeded,
+		},
+		{
+			name:         "Nodes_OverLimit_UntypedExpressionTooLarge",
+			env:          Untyped().LimitNodes(2),
+			src:          `a > 0 AND b > 0`,
+			expectedCode: CodeNodesExceeded,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := Compile(testCase.src, testCase.env)
+			if testCase.expectedCode == (errors.Code{}) {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.Equal(t, testCase.expectedCode, errors.CodeOf(err))
+		})
+	}
+}
+
+func TestEnv_LimitMemory(t *testing.T) {
+	testCases := []struct {
+		name         string
+		env          Env
+		expectedCode errors.Code
+	}{
+		{
+			name: "Unset_DefaultBudget",
+			env:  TypedStatic(tHTTP{}),
+		},
+		{
+			name:         "Small_MemoryExceeded",
+			env:          TypedStatic(tHTTP{}).LimitMemory(100),
+			expectedCode: CodeMemoryExceeded,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			program, err := Compile(`len(map(1..1000, # * 2)) > 0`, testCase.env)
+			require.NoError(t, err)
+
+			_, err = program.Bool(tHTTP{})
+			if testCase.expectedCode == (errors.Code{}) {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.Equal(t, testCase.expectedCode, errors.CodeOf(err))
 		})
 	}
 }

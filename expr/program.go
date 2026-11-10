@@ -57,6 +57,10 @@ func CompileValue(src string, env Env) (*Program, error) {
 }
 
 func compile(text string, env Env, boolean bool) (*Program, error) {
+	if env.varsErr != nil {
+		return nil, env.varsErr
+	}
+
 	s, err := newSource(text)
 	if err != nil {
 		return nil, err
@@ -68,18 +72,27 @@ func compile(text string, env Env, boolean bool) (*Program, error) {
 		boolean: boolean,
 	}
 
-	if !env.typed {
+	config := conf.CreateNew()
+	if env.nodes > 0 {
+		upstream.MaxNodes(env.nodes)(config)
+	}
+
+	tree, err := parser.ParseWithConfig(s.upstream, config)
+	if err != nil {
+		return nil, p.parseError(err)
+	}
+
+	if err := lint(tree, env, s); err != nil {
+		return nil, err
+	}
+
+	if !env.dynamic {
 		p.program, err = p.build(nil)
 		if err != nil {
 			return nil, err
 		}
 
 		return p, nil
-	}
-
-	tree, err := parser.Parse(s.upstream)
-	if err != nil {
-		return nil, p.parseError(err)
 	}
 
 	p.allNames = len(env.patches) > 0
@@ -135,7 +148,11 @@ func (p *Program) Bool(vars any) (bool, error) {
 func (p *Program) Run(vars any) (any, error) {
 	program := p.program
 
-	if p.env.typed {
+	if p.env.static && reflect.TypeOf(vars) != reflect.TypeOf(p.env.vars) {
+		return nil, errors.Newf(errors.TypeInvalidInput, CodeRunFailed, "vars are %T, expected %T", vars, p.env.vars)
+	}
+
+	if p.env.dynamic {
 		byName, ok := vars.(map[string]any)
 		if !ok {
 			return nil, errors.Newf(errors.TypeInvalidInput, CodeRunFailed, "vars are %T, expected map[string]any", vars)
@@ -149,9 +166,16 @@ func (p *Program) Run(vars any) (any, error) {
 		}
 	}
 
-	out, err := vm.Run(program, vars)
+	machine := vm.VM{MemoryBudget: p.env.memory}
+
+	out, err := machine.Run(program, vars)
 	if err != nil {
-		return nil, p.source.positionError(err, CodeRunFailed)
+		code := CodeRunFailed
+		if strings.Contains(err.Error(), "memory budget exceeded") {
+			code = CodeMemoryExceeded
+		}
+
+		return nil, p.source.positionError(err, code)
 	}
 
 	return out, nil
@@ -217,21 +241,30 @@ func (p *Program) shape(vars map[string]any) string {
 	return string(key)
 }
 
-// build compiles the upstream text as expr.Compile does. An [Untyped]
-// program passes nil vars.
+// build compiles the upstream text as expr.Compile does. Only a
+// [TypedDynamic] program passes vars.
 func (p *Program) build(vars map[string]any) (*vm.Program, error) {
 	var options []upstream.Option
-	if p.env.typed {
-		options = append(options, upstream.Env(vars))
-	}
 
-	options = append(options, upstream.AllowUndefinedVariables())
+	switch {
+	case p.env.static:
+		options = append(options, upstream.Env(p.env.vars))
+	case p.env.dynamic:
+		options = append(options, upstream.Env(vars), upstream.AllowUndefinedVariables())
+	default:
+		options = append(options, upstream.AllowUndefinedVariables())
+	}
 
 	for _, patch := range p.env.patches {
 		options = append(options, upstream.Patch(patch))
 	}
 
-	if p.env.typed {
+	switch {
+	case p.env.static:
+		nilSafe := patcher.NilSafeTyped{}
+		name, function := nilSafe.Function()
+		options = append(options, upstream.Function(name, function), upstream.Patch(nilSafe))
+	case p.env.dynamic:
 		nilSafe := patcher.NilSafe{}
 		name, function := nilSafe.Function()
 		options = append(options, upstream.Function(name, function), upstream.Patch(nilSafe))
@@ -239,6 +272,10 @@ func (p *Program) build(vars map[string]any) (*vm.Program, error) {
 
 	if p.boolean {
 		options = append(options, upstream.AsBool())
+	}
+
+	if p.env.nodes > 0 {
+		options = append(options, upstream.MaxNodes(p.env.nodes))
 	}
 
 	config := conf.CreateNew()
@@ -276,9 +313,9 @@ func (p *Program) build(vars map[string]any) (*vm.Program, error) {
 		}
 	}
 
-	// A TypedDynamic program is checked for a bool result but not cast to one, so
-	// a nil result stays an error.
-	if p.env.typed {
+	// A typed program is checked for a bool result but not cast to one, so a
+	// nil result stays an error.
+	if p.env.dynamic || p.env.static {
 		config.Expect = reflect.Invalid
 	}
 

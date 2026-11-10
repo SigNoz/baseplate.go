@@ -15,19 +15,21 @@
 // parentheses. Text in quotes and member names, as in attributes.regexp, are
 // never respelled, and neither is the = of let x = 1.
 //
-// # Untyped and TypedDynamic
+// # Untyped, TypedDynamic and TypedStatic
 //
 // An [Env] says when names get their types. [Untyped] never types them.
 // [TypedDynamic] types them when the program runs, from the variables it
-// runs with. Both allow any name, and when the types fit, as in
-// value = "92", both give the same result. They differ in when a type
-// error shows and in how a missing value reads. Run with the variables
-// {"value": "92"}:
+// runs with. [TypedStatic] types them when the program compiles, from
+// variables declared as a struct. When the types fit, as in value = "92",
+// all three give the same result. They differ in which names exist, when a
+// type error shows and how a missing value reads. With the variables
+// {"value": "92"}, declared for TypedStatic as
+// struct{ Value string `expr:"value"` }:
 //
-//	expression           Untyped                   TypedDynamic
-//	value > 80           run error: string > int   type error: string and int
-//	cluster.name = "c1"  run error: no cluster     false
-//	plan                 false                     error: the result is nil
+//	expression           Untyped                  TypedDynamic                TypedStatic
+//	value > 80           run error: string > int  type error: string and int  compile error: string and int
+//	cluster.name = "c1"  run error: no cluster    false                       compile error: unknown name
+//	plan                 false                    error: the result is nil    compile error: unknown name
 //
 // An Untyped program is compiled once and knows no types until it runs,
 // so a mistake shows as [CodeRunFailed], a.b fails when a is missing, and a
@@ -35,10 +37,22 @@
 //
 // A TypedDynamic program is typed against the top-level types of the
 // variables it runs with, compiled once for each set of those types, so a
-// mistake
-// shows as [CodeTypeInvalid]. Member access is nil-safe: a.b is nil when a
-// is missing or isn't a map. A nil result is an error. [Nest] turns flat
-// dotted keys into the nested maps a TypedDynamic program reads.
+// mistake shows as [CodeTypeInvalid] when it runs. Member access is
+// nil-safe: a.b is nil when a is missing or isn't a map. A nil result is an
+// error. [Nest] turns flat dotted keys into the nested maps a TypedDynamic
+// program reads.
+//
+// A TypedStatic program is compiled once against the declared variables,
+// so an unknown name, a misspelled field or a wrong type is a compile error.
+// A missing key of a map or any value, such as a field of parsed JSON, is
+// nil. A nil result is an error.
+//
+// # Limits
+//
+// [Env.LimitNesting], [Env.LimitPattern], [Env.LimitNodes] and
+// [Env.LimitMemory] bound what a program can cost: how deep list functions
+// nest, how long a REGEXP pattern is, how many nodes the program has and
+// how much it allocates in a run. Each limit is unset by default.
 //
 // # Patches
 //
