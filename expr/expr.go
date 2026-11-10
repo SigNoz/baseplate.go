@@ -95,8 +95,6 @@ func compile(text string, env Env, boolean bool) (*Program, error) {
 	p.references = references(tree)
 
 	if env.static {
-		s.types = typeReplacer(env.vars)
-
 		if err := p.checkNames(tree); err != nil {
 			return nil, err
 		}

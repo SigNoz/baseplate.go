@@ -362,11 +362,11 @@ func TestTypedStatic(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "ObjectAgainstString_SchemaTypeNames",
+			name: "StructAgainstString_TypeInvalid",
 			src:  `tls = "1.3"`,
 			expectedError: &tError{
 				code:    CodeTypeInvalid,
-				message: "invalid operation: = (mismatched types object tls and string)",
+				message: "invalid operation: = (mismatched types expr.tTLS and string)",
 				from:    4,
 				to:      5,
 				line:    1,
@@ -374,11 +374,11 @@ func TestTypedStatic(t *testing.T) {
 			},
 		},
 		{
-			name: "DurationAgainstInt_TypeInvalidInSchemaTerms",
+			name: "DurationAgainstInt_TypeInvalid",
 			src:  `response_time < 500`,
 			expectedError: &tError{
 				code:    CodeTypeInvalid,
-				message: "invalid operation: < (mismatched types duration and int)",
+				message: "invalid operation: < (mismatched types time.Duration and int)",
 				from:    14,
 				to:      15,
 				line:    1,

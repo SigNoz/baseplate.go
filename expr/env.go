@@ -53,8 +53,8 @@ func TypedDynamic() Env {
 // vars: a struct, whose fields are named by their expr tag or else their Go
 // name, or a map of typed zero values. Only the names vars declares exist,
 // so an unknown name, a wrong type or a misspelled field is a compile error.
-// Errors name types and fields as [Schema] does, and an unknown field or
-// function comes with the nearest declared one, if any, as a suggestion.
+// An unknown field or function comes with the nearest declared one, if
+// any, as a suggestion.
 // Member access is nil-safe on map and any values, as [patcher.NilSafeTyped]
 // makes it, and checked on struct fields. A nil or non-bool result of a
 // [Compile]d program is an error. Run the program with a value of the same

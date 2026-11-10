@@ -1,8 +1,6 @@
 package expr
 
 import (
-	"strings"
-
 	"github.com/expr-lang/expr/file"
 	"github.com/expr-lang/expr/parser/lexer"
 )
@@ -24,8 +22,7 @@ var aliases = map[string]string{
 type source struct {
 	text     string
 	upstream string
-	rewrites []rewrite         // In source order.
-	types    *strings.Replacer // Go type names to schema names, for declared variables.
+	rewrites []rewrite // In source order.
 }
 
 // rewrite is one token the shim respelled. Offsets are in code points.
