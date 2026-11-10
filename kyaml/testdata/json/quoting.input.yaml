@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: foxtrot
+data:
+  version: "25.12.5"
+  enabled: "on"
+  mode: "0755"
+  flag: "true"
+  answer: 'yes'
+  empty: ""
+  plain: golf

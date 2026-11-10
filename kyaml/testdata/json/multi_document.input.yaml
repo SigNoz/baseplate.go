@@ -1,0 +1,17 @@
+---
+# Only a comment in this document.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lima
+spec:
+  ports:
+  - port: 80
+    name: http
+---
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: lima

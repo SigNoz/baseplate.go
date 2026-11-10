@@ -1,0 +1,15 @@
+# Values for the delta environment.
+global:
+  storageClass: fast
+collector:
+  resources:
+    requests:
+      memory: 4Gi
+  config:
+    processors:
+      memory_limiter:
+        limit_mib: 3686
+database:
+  persistence:
+    size: 200Gi
+  enabled: true

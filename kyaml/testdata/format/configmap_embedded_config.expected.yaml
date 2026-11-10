@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: collector
+data:
+  collector-config.yaml: |
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 4096
+      filter/drop_stale:
+        error_mode: ignore
+        metrics:
+          datapoint:
+            - 'IsMatch(metric.name, "^bravo_.*") and time_unix_nano < UnixNano(Now()) - Duration("10m") and attributes["service.name"] != "charlie"'
+    exporters:
+      otlp:
+        endpoint: collector.example.com:4317

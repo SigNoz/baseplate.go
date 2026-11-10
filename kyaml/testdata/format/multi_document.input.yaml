@@ -1,0 +1,19 @@
+---
+# Only a comment in this document.
+---
+spec:
+  ports:
+  - port: 80
+    targetPort: http
+    name: http
+  selector:
+    app.kubernetes.io/name: echo
+metadata:
+  name: echo
+kind: Service
+apiVersion: v1
+---
+apiVersion: v1
+metadata:
+  name: echo
+kind: ServiceAccount
