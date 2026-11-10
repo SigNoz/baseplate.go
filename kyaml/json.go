@@ -34,7 +34,7 @@ func ToJSON(y YAML) ([]json.RawMessage, error) {
 			return nil, errors.Wrap(err, errors.TypeInvalidInput, CodeYAMLInvalid, "yaml is invalid")
 		}
 
-		converted, err := utilyaml.ToJSON(doc)
+		converted, err := yaml.YAMLToJSON(doc)
 		if err != nil {
 			return nil, errors.Wrap(err, errors.TypeInvalidInput, CodeYAMLInvalid, "yaml is invalid")
 		}

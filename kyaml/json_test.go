@@ -51,6 +51,44 @@ func TestToJSON_FromJSON(t *testing.T) {
 	}
 }
 
+// Documents that start with "{" are converted like any other document,
+// whether they are YAML flow mappings or JSON.
+func TestToJSON_FlowStyle(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    YAML
+		expected []string
+	}{
+		{
+			name:     "FlowMapping_ConvertedToJSON",
+			input:    YAML("{apiVersion: v1, kind: ConfigMap, metadata: {name: quebec}, data: {mode: debug}}\n"),
+			expected: []string{`{"apiVersion":"v1","data":{"mode":"debug"},"kind":"ConfigMap","metadata":{"name":"quebec"}}`},
+		},
+		{
+			name:     "JSONDocument_Compacted",
+			input:    YAML("{\"metadata\": {\"name\": \"romeo\"}, \"kind\": \"Namespace\", \"apiVersion\": \"v1\"}\n"),
+			expected: []string{`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"romeo"}}`},
+		},
+		{
+			name:     "FlowMappingAfterBlockDocument_BothConverted",
+			input:    YAML("kind: ServiceAccount\n---\n{kind: Secret}\n"),
+			expected: []string{`{"kind":"ServiceAccount"}`, `{"kind":"Secret"}`},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			docs, err := ToJSON(testCase.input)
+			require.NoError(t, err)
+			require.Len(t, docs, len(testCase.expected))
+
+			for i, doc := range docs {
+				assert.Equal(t, testCase.expected[i], string(doc))
+			}
+		})
+	}
+}
+
 func TestToJSON_Invalid(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -61,6 +99,8 @@ func TestToJSON_Invalid(t *testing.T) {
 		{name: "Empty_YAMLEmpty", input: YAML(""), expectedCode: CodeYAMLEmpty},
 		{name: "SeparatorsOnly_YAMLEmpty", input: YAML("---\n---\n"), expectedCode: CodeYAMLEmpty},
 		{name: "CommentsOnly_YAMLEmpty", input: YAML("# oscar\n---\n# papa\n"), expectedCode: CodeYAMLEmpty},
+		{name: "BrokenFlowMapping_YAMLInvalid", input: YAML("{apiVersion: v1, kind: ConfigMap,, }\n"), expectedCode: CodeYAMLInvalid},
+		{name: "BrokenJSON_YAMLInvalid", input: YAML(`{"kind": "ConfigMap",, }` + "\n"), expectedCode: CodeYAMLInvalid},
 	}
 
 	for _, testCase := range testCases {
