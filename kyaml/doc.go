@@ -14,8 +14,8 @@
 //
 // Every document is indented by two spaces, with sequences at the same
 // indent as their key. Comments and quoting are kept as written, and
-// documents with no content are dropped. Formatting formatted YAML changes
-// nothing.
+// documents with no content are dropped. A List stays one document, with
+// its items formatted inside it. Formatting formatted YAML changes nothing.
 //
 // # Editing through JSON
 //

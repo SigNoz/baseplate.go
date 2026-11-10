@@ -1,0 +1,15 @@
+items:
+- kind: ConfigMap
+  apiVersion: v1
+  data:
+    mode: debug
+  metadata:
+    name: mike
+- metadata:
+    name: november
+  kind: Secret
+  apiVersion: v1
+kind: List
+apiVersion: v1
+metadata:
+  resourceVersion: ""

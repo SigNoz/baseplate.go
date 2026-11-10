@@ -82,6 +82,7 @@ func TestFromJSON(t *testing.T) {
 	}{
 		{name: "NoDocuments_Empty", docs: nil, expected: YAML{}},
 		{name: "TwoDocuments_JoinedWithSeparator", docs: []json.RawMessage{json.RawMessage(`{"kind":"Namespace","apiVersion":"v1","metadata":{"name":"quebec"}}`), json.RawMessage(`{"romeo":"on"}`)}, expected: YAML("apiVersion: v1\nkind: Namespace\nmetadata:\n  name: quebec\n---\nromeo: \"on\"\n")},
+		{name: "List_WrapperKept", docs: []json.RawMessage{json.RawMessage(`{"kind":"List","apiVersion":"v1","items":[{"kind":"ConfigMap","apiVersion":"v1","metadata":{"name":"oscar"}}]}`)}, expected: YAML("apiVersion: v1\nkind: List\nitems:\n- apiVersion: v1\n  kind: ConfigMap\n  metadata:\n    name: oscar\n")},
 		{name: "TruncatedObject_JSONInvalid", docs: []json.RawMessage{json.RawMessage(`{"sierra":`)}, expectedCode: CodeJSONInvalid},
 		{name: "SecondDocumentInvalid_JSONInvalid", docs: []json.RawMessage{json.RawMessage(`{"tango":1}`), json.RawMessage(`[uniform`)}, expectedCode: CodeJSONInvalid},
 	}

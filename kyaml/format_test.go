@@ -37,6 +37,7 @@ func TestFormat(t *testing.T) {
 		{name: "Service_AlreadyFormatted_Unchanged", file: "already_formatted"},
 		{name: "Sequence_WideIndent_Compact", file: "sequence_indent"},
 		{name: "Ingress_UnorderedFields_CanonicalOrder", file: "ingress"},
+		{name: "List_UnorderedItems_WrapperKeptAndItemsOrdered", file: "list"},
 	}
 
 	for _, testCase := range testCases {
