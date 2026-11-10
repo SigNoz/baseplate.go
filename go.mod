@@ -3,6 +3,7 @@ module github.com/SigNoz/baseplate.go
 go 1.27.0
 
 require (
+	github.com/expr-lang/expr v1.17.8
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
