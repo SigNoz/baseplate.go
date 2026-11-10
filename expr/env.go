@@ -30,7 +30,8 @@ func Untyped() Env {
 // each set of variables it runs with, such as the nested maps [Nest]
 // returns. Any name is allowed, and member access is nil-safe, as
 // [patcher.NilSafe] makes it. A program is typed against the top-level
-// types of each set of variables and compiled once for each such shape. A
+// types of each set of variables and compiled once for each set of those
+// types. A
 // nil or non-bool result of a [Compile]d program is an error.
 //
 // With the variables {"value": "92"}:

@@ -1378,11 +1378,11 @@ func TestCompile_NodeLimit(t *testing.T) {
 		env  Env
 	}{
 		{
-			name: "Untyped_ExpressionTooLarge",
+			name: "Untyped_NodesExceeded",
 			env:  Untyped(),
 		},
 		{
-			name: "TypedDynamic_ExpressionTooLarge",
+			name: "TypedDynamic_NodesExceeded",
 			env:  TypedDynamic(),
 		},
 	}
@@ -1391,7 +1391,7 @@ func TestCompile_NodeLimit(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			_, err := Compile("a"+strings.Repeat(" + a", 10_000)+" > 0", testCase.env)
 			require.Error(t, err)
-			assert.Equal(t, CodeExpressionTooLarge, errors.CodeOf(err))
+			assert.Equal(t, CodeNodesExceeded, errors.CodeOf(err))
 		})
 	}
 }

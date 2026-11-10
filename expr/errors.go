@@ -12,11 +12,11 @@ import (
 // The codes of the errors [Compile], [CompileValue], [Program.Bool] and
 // [Program.Run] return.
 var (
-	CodeSyntaxInvalid      = errors.MustNewCode("syntax_invalid")
-	CodeTypeInvalid        = errors.MustNewCode("type_invalid")
-	CodeResultNotBool      = errors.MustNewCode("result_not_bool")
-	CodeExpressionTooLarge = errors.MustNewCode("expression_too_large")
-	CodeRunFailed          = errors.MustNewCode("run_failed")
+	CodeSyntaxInvalid = errors.MustNewCode("syntax_invalid")
+	CodeTypeInvalid   = errors.MustNewCode("type_invalid")
+	CodeResultNotBool = errors.MustNewCode("result_not_bool")
+	CodeNodesExceeded = errors.MustNewCode("nodes_exceeded")
+	CodeRunFailed     = errors.MustNewCode("run_failed")
 )
 
 // PositionError is where in an expression's source an error is. It is the
