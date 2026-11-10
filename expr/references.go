@@ -7,11 +7,16 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"time"
 	"unicode/utf8"
 
 	"github.com/expr-lang/expr/ast"
 	"github.com/expr-lang/expr/parser"
 )
+
+// timeType is [time.Time], a struct that is printed as Go formats it, not as
+// JSON.
+var timeType = reflect.TypeFor[time.Time]()
 
 // maxValueLength caps the characters of a value that
 // [Program.ReferenceValues] returns.

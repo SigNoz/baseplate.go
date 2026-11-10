@@ -19,27 +19,3 @@ type Limits struct {
 	Pattern uint `json:"pattern,omitempty"`
 	Nodes   uint `json:"nodes,omitempty"`
 }
-
-// Schema returns the schema of e's programs. It returns the errors
-// [TypedStatic] reports for vars that break its rules.
-func (e Env) Schema() (Schema, error) {
-	schema := Schema{
-		Limits: Limits{
-			Nesting: e.nesting,
-			Pattern: e.pattern,
-			Nodes:   e.nodes,
-		},
-	}
-
-	if !e.static {
-		return schema, nil
-	}
-
-	if e.varsErr != nil {
-		return Schema{}, e.varsErr
-	}
-
-	schema.Vars = docgen.CreateDoc(e.vars)
-
-	return schema, nil
-}
