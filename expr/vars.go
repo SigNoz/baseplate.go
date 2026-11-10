@@ -7,31 +7,22 @@ import (
 	"time"
 
 	"github.com/expr-lang/expr/builtin"
+	"github.com/expr-lang/expr/checker/nature"
 	"github.com/expr-lang/expr/file"
 	"github.com/expr-lang/expr/parser/lexer"
 
 	"github.com/SigNoz/baseplate.go/errors"
 )
 
-var (
-	durationType = reflect.TypeFor[time.Duration]()
-	timeType     = reflect.TypeFor[time.Time]()
-	leafTypes    = []reflect.Type{
-		reflect.TypeFor[int](),
-		reflect.TypeFor[float64](),
-		reflect.TypeFor[string](),
-		reflect.TypeFor[bool](),
-		durationType,
-		timeType,
-	}
-)
+var timeType = reflect.TypeFor[time.Time]()
 
 // reserved are the names a top-level var can't take: what the language
 // itself gives meaning to.
 var reserved = []string{"true", "false", "nil", "$env"}
 
 // checkVars returns an error when vars can't declare the vars of a
-// [TypedStatic] program.
+// [TypedStatic] program: vars must be a struct or a map[string]any, and
+// every var and field must have a name an expression can reach.
 func checkVars(vars any) error {
 	t := reflect.TypeOf(vars)
 
@@ -39,23 +30,20 @@ func checkVars(vars any) error {
 	case t == nil:
 		return errors.New(errors.TypeInvalidInput, CodeVarsInvalid, "vars are nil, expected a struct or a map[string]any")
 	case t.Kind() == reflect.Struct:
-		return checkStruct(t, "", true)
+		return checkFields(t, "", map[reflect.Type]bool{})
 	case t == reflect.TypeFor[map[string]any]():
 		value := reflect.ValueOf(vars)
 
 		for _, key := range value.MapKeys() {
 			name := key.String()
-			if err := checkName(name, name, true); err != nil {
+			if err := checkName(name, name); err != nil {
 				return err
 			}
 
-			element := value.MapIndex(key).Elem()
-			if !element.IsValid() {
-				return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "var %s is nil, expected a typed zero value", name)
-			}
-
-			if err := checkType(element.Type(), name); err != nil {
-				return err
+			if element := value.MapIndex(key).Elem(); element.IsValid() {
+				if err := checkHeld(element.Type(), name, map[reflect.Type]bool{}); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -65,52 +53,30 @@ func checkVars(vars any) error {
 	return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "vars are %s, expected a struct or a map[string]any", t)
 }
 
-// checkType returns an error when the var or field at path has a type
-// outside the ones a [TypedStatic] program supports.
-func checkType(t reflect.Type, path string) error {
-	switch {
-	case slices.Contains(leafTypes, t):
+// checkFields checks the names of the fields of struct type t at path, as
+// expr reads them, and of the structs they hold.
+func checkFields(t reflect.Type, path string, seen map[reflect.Type]bool) error {
+	if seen[t] {
 		return nil
-	case t.Kind() == reflect.Interface && t.NumMethod() == 0:
-		return nil
-	case t.Kind() == reflect.Slice:
-		return checkType(t.Elem(), path+"[]")
-	case t.Kind() == reflect.Map && t.Key() == reflect.TypeFor[string]():
-		return checkType(t.Elem(), path+"[]")
-	case t.Kind() == reflect.Struct:
-		return checkStruct(t, path, false)
 	}
 
-	return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "%s is %s, expected int, float64, string, bool, time.Duration, time.Time, any, a slice, a map with string keys or a struct", subject(path), t)
-}
+	seen[t] = true
 
-// checkStruct checks the fields of a struct at path, top being the
-// variables themselves. Embedded structs add their fields to the struct's
-// own, as expr reads them.
-func checkStruct(t reflect.Type, path string, top bool) error {
-	if t.NumMethod() > 0 || reflect.PointerTo(t).NumMethod() > 0 {
-		if top {
-			return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "vars are %s, which has methods, expected a struct without exported methods", t)
+	fields := nature.StructFields(new(nature.Cache), t)
+
+	for _, name := range slices.Sorted(func(yield func(string) bool) {
+		for name := range fields {
+			if !yield(name) {
+				return
+			}
 		}
-
-		return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "%s is %s, which has methods, expected a struct without exported methods", subject(path), t)
-	}
-
-	names := map[string]bool{}
-
-	for _, field := range fieldsOf(t) {
-		fieldPath := join(path, field.name)
-		if names[field.name] {
-			return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "%s is declared twice, expected unique names", subject(fieldPath))
-		}
-
-		names[field.name] = true
-
-		if err := checkName(field.name, fieldPath, top); err != nil {
+	}) {
+		fieldPath := join(path, name)
+		if err := checkName(name, fieldPath); err != nil {
 			return err
 		}
 
-		if err := checkType(field.t, fieldPath); err != nil {
+		if err := checkHeld(fields[name].Type, fieldPath, seen); err != nil {
 			return err
 		}
 	}
@@ -118,33 +84,35 @@ func checkStruct(t reflect.Type, path string, top bool) error {
 	return nil
 }
 
-// checkName returns an error when name can't name a var or field: it must lex
-// as one identifier that the shim leaves alone, and a top-level name must
-// not take a builtin function's or the language's own name.
-func checkName(name, path string, top bool) error {
+// checkHeld checks the struct that t is or holds, as the items of a slice
+// or the values of a map.
+func checkHeld(t reflect.Type, path string, seen map[reflect.Type]bool) error {
+	for t != nil && slices.Contains([]reflect.Kind{reflect.Slice, reflect.Array, reflect.Map, reflect.Pointer}, t.Kind()) {
+		t = t.Elem()
+	}
+
+	if t == nil || t.Kind() != reflect.Struct || t == timeType {
+		return nil
+	}
+
+	return checkFields(t, path, seen)
+}
+
+// checkName returns an error when the var or field at path can't be
+// reached by its name: the name must lex as one identifier that the shim
+// leaves alone, and a var's name must not be a builtin function's or the
+// language's own.
+func checkName(name, path string) error {
 	tokens, err := lexer.Lex(file.NewSource(name))
 	if err != nil || len(tokens) != 2 || tokens[0].Kind != lexer.Identifier || tokens[0].Value != name || aliases[name] != "" {
 		return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "%s has the name %q, expected one identifier other than AND, OR, NOT, IN, CONTAINS, REGEXP or regexp", subject(path), name)
 	}
 
-	if top && (slices.Contains(builtin.Names, name) || slices.Contains(reserved, name)) {
+	if !strings.Contains(path, ".") && (slices.Contains(builtin.Names, name) || slices.Contains(reserved, name)) {
 		return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "var %s takes the name of a builtin, expected another name", path)
 	}
 
 	return nil
-}
-
-// fieldName is the name expr gives a struct field: its expr tag, or else
-// its Go name. A field tagged "-" has none.
-func fieldName(field reflect.StructField) (string, bool) {
-	switch tag := field.Tag.Get("expr"); tag {
-	case "-":
-		return "", false
-	case "":
-		return field.Name, true
-	default:
-		return tag, true
-	}
 }
 
 func join(path, name string) string {
@@ -163,4 +131,19 @@ func subject(path string) string {
 	}
 
 	return "var " + path
+}
+
+var durationType = reflect.TypeFor[time.Duration]()
+
+// fieldName is the name expr gives a struct field: its expr tag, or else
+// its Go name. A field tagged "-" has none.
+func fieldName(field reflect.StructField) (string, bool) {
+	switch tag := field.Tag.Get("expr"); tag {
+	case "-":
+		return "", false
+	case "":
+		return field.Name, true
+	default:
+		return tag, true
+	}
 }

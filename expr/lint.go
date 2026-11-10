@@ -2,7 +2,6 @@ package expr
 
 import (
 	"fmt"
-	"regexp"
 	"unicode/utf8"
 
 	"github.com/expr-lang/expr/ast"
@@ -20,11 +19,12 @@ func (p *Program) lint(tree *parser.Tree) error {
 	}
 
 	if p.env.pattern > 0 {
-		patterns := &patternCollector{}
-		ast.Walk(&tree.Node, patterns)
+		for _, binary := range nodesOf[*ast.BinaryNode](&tree.Node) {
+			if binary.Operator != "matches" {
+				continue
+			}
 
-		for _, pattern := range patterns.found {
-			if err := p.lintPattern(pattern); err != nil {
+			if err := p.lintPattern(binary.Right); err != nil {
 				return err
 			}
 		}
@@ -37,9 +37,6 @@ func (p *Program) lint(tree *parser.Tree) error {
 // limit. A predicate's depth is one more than the deepest predicate inside
 // it.
 func (p *Program) lintNesting(tree *parser.Tree) error {
-	all := &predicateCollector{}
-	ast.Walk(&tree.Node, all)
-
 	depths := map[*ast.PredicateNode]uint{}
 
 	var depth func(predicate *ast.PredicateNode) uint
@@ -48,11 +45,8 @@ func (p *Program) lintNesting(tree *parser.Tree) error {
 			return d
 		}
 
-		inner := &predicateCollector{}
-		ast.Walk(&predicate.Node, inner)
-
 		var deepest uint
-		for _, nested := range inner.found {
+		for _, nested := range nodesOf[*ast.PredicateNode](&predicate.Node) {
 			deepest = max(deepest, depth(nested))
 		}
 
@@ -61,7 +55,7 @@ func (p *Program) lintNesting(tree *parser.Tree) error {
 		return deepest + 1
 	}
 
-	for _, predicate := range all.found {
+	for _, predicate := range nodesOf[*ast.PredicateNode](&tree.Node) {
 		if d := depth(predicate); d > p.env.nesting {
 			return p.source.positionError(&file.Error{
 				Location: predicate.Location(),
@@ -73,8 +67,9 @@ func (p *Program) lintNesting(tree *parser.Tree) error {
 	return nil
 }
 
-// lintPattern requires the pattern of a matches operator to be a valid
-// string literal within the length limit.
+// lintPattern requires the pattern of a matches operator to be a string
+// literal within the length limit. Upstream expr checks that a literal
+// pattern is a valid regular expression.
 func (p *Program) lintPattern(pattern ast.Node) error {
 	literal, ok := pattern.(*ast.StringNode)
 
@@ -86,12 +81,6 @@ func (p *Program) lintPattern(pattern ast.Node) error {
 	case uint(utf8.RuneCountInString(literal.Value)) > p.env.pattern:
 		message = fmt.Sprintf("pattern is %d characters, expected at most %d", utf8.RuneCountInString(literal.Value), p.env.pattern)
 	default:
-		if _, err := regexp.Compile(literal.Value); err != nil {
-			message = "pattern is invalid: " + err.Error()
-		}
-	}
-
-	if message == "" {
 		return nil
 	}
 
@@ -99,25 +88,4 @@ func (p *Program) lintPattern(pattern ast.Node) error {
 		Location: pattern.Location(),
 		Message:  message,
 	}, CodePatternInvalid)
-}
-
-type predicateCollector struct {
-	found []*ast.PredicateNode
-}
-
-func (c *predicateCollector) Visit(node *ast.Node) {
-	if predicate, ok := (*node).(*ast.PredicateNode); ok {
-		c.found = append(c.found, predicate)
-	}
-}
-
-// patternCollector records the right operand of every matches operator.
-type patternCollector struct {
-	found []ast.Node
-}
-
-func (c *patternCollector) Visit(node *ast.Node) {
-	if binary, ok := (*node).(*ast.BinaryNode); ok && binary.Operator == "matches" {
-		c.found = append(c.found, binary.Right)
-	}
 }

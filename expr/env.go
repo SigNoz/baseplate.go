@@ -61,13 +61,12 @@ func TypedDynamic() Env {
 // [Compile]d program is an error. Run the program with a value of the same
 // type as vars.
 //
-// The type of a var or field must be int, float64, string, bool,
-// [time.Duration], [time.Time], any, a slice or a map with string keys of
-// one of these, or a struct of them without exported methods. Its name must
-// be one identifier other than an alias such as AND, and a var's name must
-// not be a builtin function, true, false, nil or $env. [Compile] returns a
+// The name of every var and field must be one identifier other than an
+// alias such as AND, and a var's name must not be a builtin function, true,
+// false, nil or $env. [Compile] returns a
 // [github.com/SigNoz/baseplate.go/errors.TypeInvalidInput] error with
-// [CodeVarsInvalid] when vars breaks these rules.
+// [CodeVarsInvalid] when vars breaks these rules, or isn't a struct or a
+// map[string]any.
 //
 // With vars of type struct{ Value string `expr:"value"` }:
 //
@@ -94,9 +93,10 @@ func (e Env) LimitNesting(n uint) Env {
 	return e
 }
 
-// LimitPattern returns a copy of e whose programs require the pattern
-// of every REGEXP (or matches) to be a valid string literal of at most n
-// characters, so patterns compile once. Zero, the default, sets no limit.
+// LimitPattern returns a copy of e whose programs require the pattern of
+// every REGEXP (or matches) to be a string literal of at most n characters,
+// so patterns compile once. Expr itself rejects an invalid literal pattern,
+// with [CodeTypeInvalid]. Zero, the default, sets no limit.
 // [Compile] returns a [github.com/SigNoz/baseplate.go/errors.TypeInvalidInput]
 // error with [CodePatternInvalid] for a pattern that breaks it.
 func (e Env) LimitPattern(n uint) Env {

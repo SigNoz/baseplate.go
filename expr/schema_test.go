@@ -71,10 +71,6 @@ func TestSchemaOf_VarsInvalid(t *testing.T) {
 		vars any
 	}{
 		{
-			name: "Int64Field",
-			vars: struct{ Count int64 }{},
-		},
-		{
 			name: "Nil",
 			vars: nil,
 		},

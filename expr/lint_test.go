@@ -46,10 +46,10 @@ func TestLint(t *testing.T) {
 			expectedCode: CodePatternInvalid,
 		},
 		{
-			name:         "Pattern_Invalid_PatternInvalid",
+			name:         "Pattern_Invalid_TypeInvalid",
 			env:          tHTTPEnv(),
 			src:          `body REGEXP "[a"`,
-			expectedCode: CodePatternInvalid,
+			expectedCode: CodeTypeInvalid,
 		},
 		{
 			name:         "Pattern_TooLong_PatternInvalid",
