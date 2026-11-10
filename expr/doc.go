@@ -15,14 +15,27 @@
 // parentheses. Text in quotes and member names, as in attributes.regexp, are
 // never respelled, and neither is the = of let x = 1.
 //
-// # Envs
+// # Untyped and Typed
 //
-// An [Env] says what names exist and how they are typed:
+// An [Env] says when names get their types. Both allow any name, and when
+// the types fit, as in value = "92", both give the same result. They differ
+// in when a type error shows and in how a missing value reads. Run with the
+// variables {"value": "92"}:
 //
-//   - [Typed] is for label sets from [Nest]. Any name is allowed,
-//     a.b is nil when a is missing or isn't a map, and a program is typed
-//     against each label set it runs with.
-//   - [Untyped] allows any name and types nothing until the program runs.
+//	expression           Untyped                   Typed
+//	value > 80           run error: string > int   type error: string and int
+//	cluster.name = "c1"  run error: no cluster     false
+//	plan                 false                     error: the result is nil
+//
+// An [Untyped] program is compiled once and knows no types until it runs,
+// so a mistake shows as [CodeRunFailed], a.b fails when a is missing, and a
+// nil result is false.
+//
+// A [Typed] program is typed against the top-level types of the variables
+// it runs with, compiled once for each such shape, so a mistake shows as
+// [CodeTypeInvalid]. Member access is nil-safe: a.b is nil when a is
+// missing or isn't a map. A nil result is an error. [Nest] turns flat
+// dotted keys into the nested maps a Typed program reads.
 //
 // # Usage
 //
