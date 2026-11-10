@@ -19,7 +19,7 @@ func (p *Program) lint(tree *parser.Tree) error {
 		}
 	}
 
-	if p.env.patternLength > 0 {
+	if p.env.pattern > 0 {
 		patterns := &patternCollector{}
 		ast.Walk(&tree.Node, patterns)
 
@@ -83,8 +83,8 @@ func (p *Program) lintPattern(pattern ast.Node) error {
 	switch {
 	case !ok:
 		message = "pattern is not a string literal, expected a quoted pattern"
-	case uint(utf8.RuneCountInString(literal.Value)) > p.env.patternLength:
-		message = fmt.Sprintf("pattern is %d characters, expected at most %d", utf8.RuneCountInString(literal.Value), p.env.patternLength)
+	case uint(utf8.RuneCountInString(literal.Value)) > p.env.pattern:
+		message = fmt.Sprintf("pattern is %d characters, expected at most %d", utf8.RuneCountInString(literal.Value), p.env.pattern)
 	default:
 		if _, err := regexp.Compile(literal.Value); err != nil {
 			message = "pattern is invalid: " + err.Error()

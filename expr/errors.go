@@ -12,18 +12,18 @@ import (
 // The codes of the errors [Compile], [CompileValue], [Program.Bool] and
 // [Program.Run] return.
 var (
-	CodeSyntaxInvalid      = errors.MustNewCode("syntax_invalid")
-	CodeTypeInvalid        = errors.MustNewCode("type_invalid")
-	CodeResultNotBool      = errors.MustNewCode("result_not_bool")
-	CodeExpressionTooLarge = errors.MustNewCode("expression_too_large")
-	CodeRunFailed          = errors.MustNewCode("run_failed")
-	CodeNestingTooDeep     = errors.MustNewCode("nesting_too_deep")
-	CodePatternInvalid     = errors.MustNewCode("pattern_invalid")
-	CodeMemoryExceeded     = errors.MustNewCode("memory_exceeded")
-	CodeVarsInvalid        = errors.MustNewCode("vars_invalid")
-	CodeNameUnknown        = errors.MustNewCode("name_unknown")
-	CodeFunctionUnknown    = errors.MustNewCode("function_unknown")
-	CodeVarTypeInvalid     = errors.MustNewCode("var_type_invalid")
+	CodeSyntaxInvalid   = errors.MustNewCode("syntax_invalid")
+	CodeTypeInvalid     = errors.MustNewCode("type_invalid")
+	CodeResultNotBool   = errors.MustNewCode("result_not_bool")
+	CodeNodesExceeded   = errors.MustNewCode("nodes_exceeded")
+	CodeRunFailed       = errors.MustNewCode("run_failed")
+	CodeNestingTooDeep  = errors.MustNewCode("nesting_too_deep")
+	CodePatternInvalid  = errors.MustNewCode("pattern_invalid")
+	CodeMemoryExceeded  = errors.MustNewCode("memory_exceeded")
+	CodeVarsInvalid     = errors.MustNewCode("vars_invalid")
+	CodeNameUnknown     = errors.MustNewCode("name_unknown")
+	CodeFunctionUnknown = errors.MustNewCode("function_unknown")
+	CodeVarTypeInvalid  = errors.MustNewCode("var_type_invalid")
 )
 
 // PositionError is where in an expression's source an error is. It is the

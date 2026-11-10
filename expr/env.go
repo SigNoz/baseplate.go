@@ -9,15 +9,15 @@ import (
 // Env is how an expression's names are typed, the patches its programs
 // apply and the limits they keep to. The zero Env is [Untyped].
 type Env struct {
-	dynamic       bool
-	static        bool
-	vars          any
-	varsErr       error
-	patches       []ast.Visitor
-	nesting       uint
-	patternLength uint
-	nodes         uint
-	memory        uint
+	dynamic bool
+	static  bool
+	vars    any
+	varsErr error
+	patches []ast.Visitor
+	nesting uint
+	pattern uint
+	nodes   uint
+	memory  uint
 }
 
 // Untyped returns an Env in which any name is allowed and nothing is typed
@@ -37,7 +37,8 @@ func Untyped() Env {
 // each set of variables it runs with, such as the nested maps [Nest]
 // returns. Any name is allowed, and member access is nil-safe, as
 // [patcher.NilSafe] makes it. A program is typed against the top-level
-// types of each set of variables and compiled once for each such shape. A
+// types of each set of variables and compiled once for each set of those
+// types. A
 // nil or non-bool result of a [Compile]d program is an error.
 //
 // With the variables {"value": "92"}:
@@ -93,13 +94,13 @@ func (e Env) LimitNesting(n uint) Env {
 	return e
 }
 
-// LimitPatternLength returns a copy of e whose programs require the pattern
+// LimitPattern returns a copy of e whose programs require the pattern
 // of every REGEXP (or matches) to be a valid string literal of at most n
 // characters, so patterns compile once. Zero, the default, sets no limit.
 // [Compile] returns a [github.com/SigNoz/baseplate.go/errors.TypeInvalidInput]
 // error with [CodePatternInvalid] for a pattern that breaks it.
-func (e Env) LimitPatternLength(n uint) Env {
-	e.patternLength = n
+func (e Env) LimitPattern(n uint) Env {
+	e.pattern = n
 
 	return e
 }
@@ -107,7 +108,7 @@ func (e Env) LimitPatternLength(n uint) Env {
 // LimitNodes returns a copy of e whose programs have at most n nodes. Zero,
 // the default, keeps expr's own limit. [Compile] returns a
 // [github.com/SigNoz/baseplate.go/errors.TypeInvalidInput] error with
-// [CodeExpressionTooLarge] for a program over it.
+// [CodeNodesExceeded] for a program over it.
 func (e Env) LimitNodes(n uint) Env {
 	e.nodes = n
 
@@ -132,11 +133,11 @@ func (e Env) LimitMemory(n uint) Env {
 // program, so they see member access as written.
 //
 // An [Untyped] program runs each patch once, in [Compile]. A [TypedDynamic]
-// program runs it again for each new shape of variables, so a patch that
-// keeps state sees every tree it rewrites. Since a patch can make the
-// program read any name, a TypedDynamic program with patches tells shapes
-// apart by the types of all its variables, not only the names it was
-// written with.
+// program runs it again for each new set of top-level variable types, so a
+// patch that keeps state sees every tree it rewrites. Since a patch can
+// make the program read any name, a TypedDynamic program with patches
+// compiles again when the type of any of its variables changes, not only
+// of the names it was written with.
 func (e Env) Patch(v ast.Visitor) Env {
 	e.patches = append(slices.Clone(e.patches), v)
 

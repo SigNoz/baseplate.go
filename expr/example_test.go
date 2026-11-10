@@ -160,7 +160,7 @@ func ExampleTypedStatic() {
 		TLS          tls           `expr:"tls"`
 	}
 
-	env := expr.TypedStatic(check{}).LimitNesting(1).LimitPatternLength(256)
+	env := expr.TypedStatic(check{}).LimitNesting(1).LimitPattern(256)
 
 	_, err := expr.Compile(`tls.versoin = "1.3"`, env)
 	_, _ = fmt.Println(errors.CodeOf(err), errors.MessageOf(err))

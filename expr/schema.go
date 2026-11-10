@@ -60,7 +60,7 @@ func (e Env) Schema() (Schema, error) {
 
 	schema.Limits = Limits{
 		Nesting:       e.nesting,
-		PatternLength: e.patternLength,
+		PatternLength: e.pattern,
 		Nodes:         e.nodes,
 	}
 

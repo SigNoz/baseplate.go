@@ -38,7 +38,7 @@ func TestEnv_Schema(t *testing.T) {
 		},
 		{
 			name: "TypedStatic_FieldsAndLimits",
-			env:  TypedStatic(tCheck{}).LimitNesting(1).LimitPatternLength(256).LimitMemory(1000),
+			env:  TypedStatic(tCheck{}).LimitNesting(1).LimitPattern(256).LimitMemory(1000),
 			expectedJSON: `{"vars":[` +
 				`{"name":"status_code","type":"int"},` +
 				`{"name":"headers","type":"map","elem":{"type":"string"}},` +
