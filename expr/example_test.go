@@ -5,7 +5,7 @@ import (
 
 	"github.com/SigNoz/baseplate.go/errors"
 	"github.com/SigNoz/baseplate.go/expr"
-	"github.com/SigNoz/baseplate.go/expr/ast"
+	"github.com/expr-lang/expr/ast"
 )
 
 func Example() {

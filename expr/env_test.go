@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SigNoz/baseplate.go/errors"
-	"github.com/SigNoz/baseplate.go/expr/ast"
+	"github.com/expr-lang/expr/ast"
 )
 
 // tRename renames identifier from to identifier to, and counts the trees it
