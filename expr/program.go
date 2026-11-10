@@ -84,7 +84,16 @@ func compile(text string, env Env, boolean bool) (*Program, error) {
 
 	p.allNames = len(env.patches) > 0
 
-	ast.Walk(&tree.Node, &nameCollector{program: p})
+	visit(&tree.Node, func(node *ast.Node) {
+		switch n := (*node).(type) {
+		case *ast.IdentifierNode:
+			p.allNames = p.allNames || n.Value == "$env"
+			p.names = append(p.names, n.Value)
+		case *ast.BuiltinNode:
+			p.names = append(p.names, n.Name)
+		}
+	})
+
 	slices.Sort(p.names)
 	p.names = slices.Compact(p.names)
 
@@ -288,22 +297,4 @@ func (p *Program) parseError(err error) error {
 	}
 
 	return p.source.positionError(err, CodeSyntaxInvalid)
-}
-
-// nameCollector records the top-level names an expression references.
-type nameCollector struct {
-	program *Program
-}
-
-func (c *nameCollector) Visit(node *ast.Node) {
-	switch n := (*node).(type) {
-	case *ast.IdentifierNode:
-		if n.Value == "$env" {
-			c.program.allNames = true
-		}
-
-		c.program.names = append(c.program.names, n.Value)
-	case *ast.BuiltinNode:
-		c.program.names = append(c.program.names, n.Name)
-	}
 }
