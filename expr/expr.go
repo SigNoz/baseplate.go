@@ -146,7 +146,7 @@ func (p *Program) Run(vars any) (any, error) {
 	if p.env.dynamic {
 		env, ok := vars.(map[string]any)
 		if !ok {
-			return nil, errors.Newf(errors.TypeInvalidInput, CodeRunFailed, "variables are %T, expected map[string]any", vars)
+			return nil, errors.Newf(errors.TypeInvalidInput, CodeRunFailed, "vars are %T, expected map[string]any", vars)
 		}
 
 		var err error
