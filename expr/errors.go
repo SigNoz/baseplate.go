@@ -17,6 +17,10 @@ var (
 	CodeResultNotBool      = errors.MustNewCode("result_not_bool")
 	CodeExpressionTooLarge = errors.MustNewCode("expression_too_large")
 	CodeRunFailed          = errors.MustNewCode("run_failed")
+	CodeNestingTooDeep     = errors.MustNewCode("nesting_too_deep")
+	CodePatternInvalid     = errors.MustNewCode("pattern_invalid")
+	CodeMemoryExceeded     = errors.MustNewCode("memory_exceeded")
+	CodeVarsInvalid        = errors.MustNewCode("vars_invalid")
 )
 
 // PositionError is where in an expression's source an error is. It is the
