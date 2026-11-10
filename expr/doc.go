@@ -15,34 +15,36 @@
 // parentheses. Text in quotes and member names, as in attributes.regexp, are
 // never respelled, and neither is the = of let x = 1.
 //
-// # Untyped and Typed
+// # Untyped and TypedDynamic
 //
-// An [Env] says when names get their types. Both allow any name, and when
-// the types fit, as in value = "92", both give the same result. They differ
-// in when a type error shows and in how a missing value reads. Run with the
-// variables {"value": "92"}:
+// An [Env] says when names get their types. [Untyped] never types them.
+// [TypedDynamic] types them when the program runs, from the variables it
+// runs with. Both allow any name, and when the types fit, as in
+// value = "92", both give the same result. They differ in when a type
+// error shows and in how a missing value reads. Run with the variables
+// {"value": "92"}:
 //
-//	expression           Untyped                   Typed
+//	expression           Untyped                   TypedDynamic
 //	value > 80           run error: string > int   type error: string and int
 //	cluster.name = "c1"  run error: no cluster     false
 //	plan                 false                     error: the result is nil
 //
-// An [Untyped] program is compiled once and knows no types until it runs,
+// An Untyped program is compiled once and knows no types until it runs,
 // so a mistake shows as [CodeRunFailed], a.b fails when a is missing, and a
 // nil result is false.
 //
-// A [Typed] program is typed against the top-level types of the variables
-// it runs with, compiled once for each such shape, so a mistake shows as
-// [CodeTypeInvalid]. Member access is nil-safe: a.b is nil when a is
-// missing or isn't a map. A nil result is an error. [Nest] turns flat
-// dotted keys into the nested maps a Typed program reads.
+// A TypedDynamic program is typed against the top-level types of the
+// variables it runs with, compiled once for each such shape, so a mistake
+// shows as [CodeTypeInvalid]. Member access is nil-safe: a.b is nil when a
+// is missing or isn't a map. A nil result is an error. [Nest] turns flat
+// dotted keys into the nested maps a TypedDynamic program reads.
 //
 // # Usage
 //
 // Compile once and run as often as needed; a [Program] is safe for
 // concurrent use:
 //
-//	program, err := expr.Compile(`env = "prod" AND region IN ["eu"]`, expr.Typed())
+//	program, err := expr.Compile(`env = "prod" AND region IN ["eu"]`, expr.TypedDynamic())
 //	if err != nil {
 //		return err
 //	}

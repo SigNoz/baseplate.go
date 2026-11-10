@@ -6,5 +6,5 @@
 //
 // [NilSafe] makes member access return nil instead of failing when the
 // parent is missing or isn't a map. A
-// [github.com/SigNoz/baseplate.go/expr.Typed] program applies it.
+// [github.com/SigNoz/baseplate.go/expr.TypedDynamic] program applies it.
 package patcher

@@ -21,7 +21,7 @@ import (
 	"github.com/SigNoz/baseplate.go/expr/patcher"
 )
 
-// maxShapes caps the programs a [Typed] program keeps, one per set of
+// maxShapes caps the programs a [TypedDynamic] program keeps, one per set of
 // top-level variable types. Past it, programs are compiled on every run.
 const maxShapes = 64
 
@@ -33,8 +33,8 @@ type Program struct {
 
 	program *vm.Program // Untyped.
 
-	names   []string // Typed: the top-level names the expression references, sorted.
-	usesEnv bool     // Typed: the expression reads $env, so every name counts.
+	names   []string // TypedDynamic: the top-level names the expression references, sorted.
+	usesEnv bool     // TypedDynamic: the expression reads $env, so every name counts.
 	shapes  sync.Map
 	count   atomic.Int64
 }
@@ -98,12 +98,12 @@ func (p *Program) Source() string {
 	return p.source.text
 }
 
-// Bool runs the program with vars and returns its bool result. A [Typed]
+// Bool runs the program with vars and returns its bool result. A [TypedDynamic]
 // program takes a map[string]any, such as one from [Nest].
 //
 // It returns a [github.com/SigNoz/baseplate.go/errors.TypeInvalidInput]
 // error with [CodeRunFailed] when the run fails and [CodeResultNotBool]
-// when the result isn't a bool. A [Typed] program can also return the
+// when the result isn't a bool. A [TypedDynamic] program can also return the
 // errors of [Compile], since it is typed against vars.
 func (p *Program) Bool(vars any) (bool, error) {
 	out, err := p.Run(vars)
@@ -261,7 +261,7 @@ func (p *Program) build(env map[string]any) (*vm.Program, error) {
 		}
 	}
 
-	// A Typed program is checked for a bool result but not cast to one, so
+	// A TypedDynamic program is checked for a bool result but not cast to one, so
 	// a nil result stays an error.
 	if p.env.typed {
 		config.Expect = reflect.Invalid

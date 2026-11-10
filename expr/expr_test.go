@@ -16,7 +16,7 @@ import (
 // generated once by running SigNoz's ConvertLabelSetToEnv and EvalExpression
 // on the SigNoz/expr fork (v1.17.7-beta) for every case. A program that
 // Compile rejects must be one the reference rejects on every label set.
-func TestTyped(t *testing.T) {
+func TestTypedDynamic(t *testing.T) {
 	testCases := []struct {
 		name          string
 		expression    string
@@ -504,7 +504,7 @@ func TestTyped(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			program, err := Compile(testCase.expression, Typed())
+			program, err := Compile(testCase.expression, TypedDynamic())
 			if err == nil {
 				vars, _ := Nest(testCase.labels)
 
@@ -1382,8 +1382,8 @@ func TestCompile_NodeLimit(t *testing.T) {
 			env:  Untyped(),
 		},
 		{
-			name: "Typed_ExpressionTooLarge",
-			env:  Typed(),
+			name: "TypedDynamic_ExpressionTooLarge",
+			env:  TypedDynamic(),
 		},
 	}
 
@@ -1408,10 +1408,10 @@ func TestProgram_Bool(t *testing.T) {
 		expectedMessage string
 	}{
 		{
-			name:     "Typed_BoolResult_Matches",
+			name:     "TypedDynamic_BoolResult_Matches",
 			compile:  Compile,
 			src:      `tier = "gold"`,
-			env:      Typed(),
+			env:      TypedDynamic(),
 			vars:     map[string]any{"tier": "gold"},
 			expected: true,
 		},
@@ -1426,16 +1426,16 @@ func TestProgram_Bool(t *testing.T) {
 			name:            "Value_StringResult_NotBool",
 			compile:         CompileValue,
 			src:             `name`,
-			env:             Typed(),
+			env:             TypedDynamic(),
 			vars:            map[string]any{"name": "alpha"},
 			expectedCode:    CodeResultNotBool,
 			expectedMessage: "result is string (alpha), expected bool",
 		},
 		{
-			name:            "Typed_StringMapVars_RunFailed",
+			name:            "TypedDynamic_StringMapVars_RunFailed",
 			compile:         Compile,
 			src:             `env = "prod"`,
-			env:             Typed(),
+			env:             TypedDynamic(),
 			vars:            map[string]string{"env": "prod"},
 			expectedCode:    CodeRunFailed,
 			expectedMessage: "variables are map[string]string, expected map[string]any",
@@ -1465,7 +1465,7 @@ func TestProgram_Bool(t *testing.T) {
 // Label sets of different shapes, evaluated at once, each get the program
 // typed for their own shape.
 func TestProgram_ConcurrentShapes(t *testing.T) {
-	program, err := Compile(`value.x = "y" OR env = "prod"`, Typed())
+	program, err := Compile(`value.x = "y" OR env = "prod"`, TypedDynamic())
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -1525,9 +1525,9 @@ func TestProgram_Source(t *testing.T) {
 			env:  Untyped(),
 		},
 		{
-			name: "Typed_AsWritten",
+			name: "TypedDynamic_AsWritten",
 			src:  `tier REGEXP "^g" OR NOT (plan = "free")`,
-			env:  Typed(),
+			env:  TypedDynamic(),
 		},
 	}
 

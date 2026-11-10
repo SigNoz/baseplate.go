@@ -5,8 +5,8 @@ import (
 )
 
 // Nest returns a flat map with dotted keys as nested maps, the variables a
-// [Typed] program reads: "k8s.pod.name" becomes k8s.pod.name. Keys and their
-// dotted segments are trimmed of spaces.
+// [TypedDynamic] program reads: "k8s.pod.name" becomes k8s.pod.name. Keys
+// and their dotted segments are trimmed of spaces.
 //
 // When a dotted key and a plain key collide, such as "foo" and "foo.bar",
 // the nested map wins and the second return value is true. The same holds

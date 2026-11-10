@@ -18,18 +18,18 @@ func Untyped() Env {
 	return Env{}
 }
 
-// Typed returns an Env that types a program against each set of variables
-// it runs with, such as the nested maps [Nest] returns. Any name is allowed,
-// and member access is nil-safe, as [patcher.NilSafe] makes it. A program is
-// typed against the top-level types of each set of variables and compiled
-// once for each such shape. A nil or non-bool result of a [Compile]d program
-// is an error.
+// TypedDynamic returns an Env that types a program when it runs, against
+// each set of variables it runs with, such as the nested maps [Nest]
+// returns. Any name is allowed, and member access is nil-safe, as
+// [patcher.NilSafe] makes it. A program is typed against the top-level
+// types of each set of variables and compiled once for each such shape. A
+// nil or non-bool result of a [Compile]d program is an error.
 //
 // With the variables {"value": "92"}:
 //
 //	value > 80           type error (CodeTypeInvalid): string and int
 //	cluster.name = "c1"  false
 //	plan                 error (CodeResultNotBool): the result is nil
-func Typed() Env {
+func TypedDynamic() Env {
 	return Env{typed: true}
 }

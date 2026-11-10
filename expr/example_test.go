@@ -8,7 +8,7 @@ import (
 )
 
 func Example() {
-	program, err := expr.Compile(`env = "prod" AND service.name IN ["api", "web"]`, expr.Typed())
+	program, err := expr.Compile(`env = "prod" AND service.name IN ["api", "web"]`, expr.TypedDynamic())
 	if err != nil {
 		panic(err)
 	}
@@ -26,7 +26,7 @@ func Example() {
 }
 
 func ExampleCompile_error() {
-	_, err := expr.Compile(`env = "prod" AND "5" > 3`, expr.Typed())
+	_, err := expr.Compile(`env = "prod" AND "5" > 3`, expr.TypedDynamic())
 	if err != nil {
 		_, _ = fmt.Println(errors.CodeOf(err))
 		_, _ = fmt.Println(errors.MessageOf(err))
@@ -50,8 +50,8 @@ func ExampleCompile_error() {
 	//  | ...............^
 }
 
-func ExampleTyped() {
-	program, err := expr.Compile(`cluster.name = "alpha"`, expr.Typed())
+func ExampleTypedDynamic() {
+	program, err := expr.Compile(`cluster.name = "alpha"`, expr.TypedDynamic())
 	if err != nil {
 		panic(err)
 	}
