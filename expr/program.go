@@ -82,7 +82,7 @@ func compile(text string, env Env, boolean bool) (*Program, error) {
 		return nil, p.parseError(err)
 	}
 
-	if err := p.lint(tree); err != nil {
+	if err := lint(tree, env, s); err != nil {
 		return nil, err
 	}
 
