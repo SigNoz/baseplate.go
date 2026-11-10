@@ -444,7 +444,7 @@ func TestTypedStatic_RunVariables(t *testing.T) {
 			vars: map[string]any{"status_code": 200},
 			expectedError: &tError{
 				code:    CodeRunFailed,
-				message: "variables are map[string]interface {}, expected expr.tHTTP",
+				message: "vars are map[string]interface {}, expected expr.tHTTP",
 			},
 		},
 	}

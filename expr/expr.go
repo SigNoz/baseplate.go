@@ -140,7 +140,7 @@ func (p *Program) Run(vars any) (any, error) {
 	program := p.program
 
 	if p.env.static && reflect.TypeOf(vars) != reflect.TypeOf(p.env.vars) {
-		return nil, errors.Newf(errors.TypeInvalidInput, CodeRunFailed, "variables are %T, expected %T", vars, p.env.vars)
+		return nil, errors.Newf(errors.TypeInvalidInput, CodeRunFailed, "vars are %T, expected %T", vars, p.env.vars)
 	}
 
 	if p.env.dynamic {
