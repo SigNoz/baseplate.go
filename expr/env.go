@@ -3,7 +3,7 @@ package expr
 import (
 	"slices"
 
-	"github.com/SigNoz/baseplate.go/expr/ast"
+	"github.com/expr-lang/expr/ast"
 )
 
 // Env is how an expression's names are typed, the patches its programs

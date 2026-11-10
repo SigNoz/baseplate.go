@@ -58,8 +58,8 @@
 //
 // [Env.Patch] adds a caller's own rewrite of the syntax tree, such as
 // reading body.x from a parsed copy of the body. A patch is a
-// [github.com/SigNoz/baseplate.go/expr/ast.Visitor], and the patches the
-// package applies itself are in [github.com/SigNoz/baseplate.go/expr/patcher].
+// [github.com/expr-lang/expr/ast.Visitor], and the patches the package
+// applies itself are in [github.com/SigNoz/baseplate.go/expr/patcher].
 //
 // # Usage
 //
