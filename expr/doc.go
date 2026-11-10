@@ -28,8 +28,8 @@
 //
 //	expression           Untyped                  TypedDynamic                TypedStatic
 //	value > 80           run error: string > int  type error: string and int  compile error: string and int
-//	cluster.name = "c1"  run error: no cluster    false                       compile error: unknown name
-//	plan                 false                    error: the result is nil    compile error: unknown name
+//	cluster.name = "c1"  run error: no cluster    false                       compile error: unknown field
+//	plan                 false                    error: the result is nil    compile error: unknown field
 //
 // An Untyped program is compiled once and knows no types until it runs,
 // so a mistake shows as [CodeRunFailed], a.b fails when a is missing, and a
@@ -52,6 +52,18 @@
 // [Env.LimitMemory] bound what a program can cost: how deep list functions
 // nest, how long a REGEXP pattern is, how many nodes the program has and
 // how much it allocates in a run. Each limit is unset by default.
+//
+// # Schema, references and values
+//
+// [Env.Schema] describes an Env's names for a client, such as an editor
+// that checks expressions as they are typed: the declared fields of a
+// TypedStatic Env with their types, or an open schema, with the limits.
+// [SchemaOf] gives the fields of a struct alone.
+//
+// [Program.References] lists the variables an expression reads, as paths
+// such as tls.version. [Program.Values] runs each of them with a set of
+// variables and returns their values as text, to show what an expression
+// saw when it didn't match.
 //
 // # Patches
 //

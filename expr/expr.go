@@ -31,7 +31,13 @@ type Program struct {
 	env     Env
 	boolean bool
 
-	program *vm.Program // Untyped.
+	program *vm.Program // Untyped and TypedStatic.
+
+	references []string
+	values     struct {
+		once     sync.Once
+		programs map[string]*Program
+	}
 
 	names    []string // TypedDynamic: the top-level names the expression references, sorted.
 	allNames bool     // TypedDynamic: $env or a caller's patch may read any name, so every name counts.
@@ -84,6 +90,16 @@ func compile(text string, env Env, boolean bool) (*Program, error) {
 
 	if err := p.lint(tree); err != nil {
 		return nil, err
+	}
+
+	p.references = references(tree)
+
+	if env.static {
+		s.types = typeReplacer(env.vars)
+
+		if err := p.checkNames(tree); err != nil {
+			return nil, err
+		}
 	}
 
 	if !env.dynamic {

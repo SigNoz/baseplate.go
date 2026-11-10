@@ -9,15 +9,17 @@ import (
 	"github.com/SigNoz/baseplate.go/errors"
 )
 
-// tError is an expected error. A zero code or an empty message isn't
-// checked, and a zero line means the error has no position.
+// tError is an expected error. A zero code, an empty message or nil
+// suggestions aren't checked, and a zero line means the error has no
+// position.
 type tError struct {
-	code    errors.Code
-	message string
-	from    int
-	to      int
-	line    int
-	column  int
+	code        errors.Code
+	message     string
+	suggestions []string
+	from        int
+	to          int
+	line        int
+	column      int
 }
 
 func tAssertError(t *testing.T, expected *tError, err error) {
@@ -31,6 +33,10 @@ func tAssertError(t *testing.T, expected *tError, err error) {
 
 	if expected.message != "" {
 		assert.Equal(t, expected.message, errors.MessageOf(err))
+	}
+
+	if expected.suggestions != nil {
+		assert.Equal(t, expected.suggestions, errors.AsException(err).Suggestions)
 	}
 
 	position, ok := errors.AsType[*PositionError](err)

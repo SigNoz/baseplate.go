@@ -97,46 +97,24 @@ func checkStruct(t reflect.Type, path string, top bool) error {
 
 	names := map[string]bool{}
 
-	var fields func(t reflect.Type) error
-	fields = func(t reflect.Type) error {
-		for field := range t.Fields() {
-			if !field.IsExported() {
-				continue
-			}
-
-			if field.Anonymous && field.Type.Kind() == reflect.Struct {
-				if err := fields(field.Type); err != nil {
-					return err
-				}
-
-				continue
-			}
-
-			name, ok := fieldName(field)
-			if !ok {
-				continue
-			}
-
-			fieldPath := join(path, name)
-			if names[name] {
-				return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "variable %s is declared twice, expected unique names", fieldPath)
-			}
-
-			names[name] = true
-
-			if err := checkName(name, fieldPath, top); err != nil {
-				return err
-			}
-
-			if err := checkType(field.Type, fieldPath); err != nil {
-				return err
-			}
+	for _, field := range fieldsOf(t) {
+		fieldPath := join(path, field.name)
+		if names[field.name] {
+			return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "variable %s is declared twice, expected unique names", fieldPath)
 		}
 
-		return nil
+		names[field.name] = true
+
+		if err := checkName(field.name, fieldPath, top); err != nil {
+			return err
+		}
+
+		if err := checkType(field.t, fieldPath); err != nil {
+			return err
+		}
 	}
 
-	return fields(t)
+	return nil
 }
 
 // checkName returns an error when name can't name a variable: it must lex

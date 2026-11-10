@@ -21,6 +21,9 @@ var (
 	CodePatternInvalid     = errors.MustNewCode("pattern_invalid")
 	CodeMemoryExceeded     = errors.MustNewCode("memory_exceeded")
 	CodeVarsInvalid        = errors.MustNewCode("vars_invalid")
+	CodeFieldUnknown       = errors.MustNewCode("field_unknown")
+	CodeFunctionUnknown    = errors.MustNewCode("function_unknown")
+	CodeFieldTypeInvalid   = errors.MustNewCode("field_type_invalid")
 )
 
 // PositionError is where in an expression's source an error is. It is the
@@ -43,11 +46,11 @@ func (e *PositionError) Error() string {
 }
 
 // positionError turns an error from expr, whose positions are on the
-// upstream text, into an error on the source with code.
-func (s *source) positionError(err error, code errors.Code) error {
+// upstream text, into an error on the source with code and suggestions.
+func (s *source) positionError(err error, code errors.Code, suggestions ...string) error {
 	upstream, ok := errors.AsType[*file.Error](err)
 	if !ok {
-		return errors.New(errors.TypeInvalidInput, code, err.Error())
+		return errors.New(errors.TypeInvalidInput, code, s.retype(err.Error()))
 	}
 
 	from, to := s.offset(upstream.From, false), s.offset(upstream.To, true)
@@ -65,7 +68,23 @@ func (s *source) positionError(err error, code errors.Code) error {
 		snippet: bound.Snippet,
 	}
 
-	return errors.Wrap(position, errors.TypeInvalidInput, code, s.respell(upstream.Message, upstream.From, upstream.To))
+	wrapped := errors.Wrap(position, errors.TypeInvalidInput, code, s.retype(s.respell(upstream.Message, upstream.From, upstream.To)))
+	if len(suggestions) > 0 {
+		return wrapped.WithSuggestions(suggestions...)
+	}
+
+	return wrapped
+}
+
+// retype spells the Go types in an error message from expr the way the
+// variables' schema does, as in duration for [time.Duration], when the
+// program has declared variables.
+func (s *source) retype(message string) string {
+	if s.types == nil {
+		return message
+	}
+
+	return s.types.Replace(message)
 }
 
 // respell puts back the source spelling of a rewritten token that an error
