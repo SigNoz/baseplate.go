@@ -53,26 +53,26 @@ func TypedDynamic() Env {
 // vars: a struct, whose fields are named by their expr tag or else their Go
 // name, or a map of typed zero values. Only the names vars declares exist,
 // so an unknown name, a wrong type or a misspelled field is a compile error.
-// An unknown field or function comes with the nearest declared one, if
-// any, as a suggestion.
+// An unknown var, field or function comes with the nearest declared one,
+// if any, as a suggestion.
 // Member access is nil-safe on map and any values, as [patcher.NilSafeTyped]
 // makes it, and checked on struct fields. A nil or non-bool result of a
 // [Compile]d program is an error. Run the program with a value of the same
 // type as vars.
 //
-// A field's type must be int, float64, string, bool, [time.Duration],
-// [time.Time], any, a slice or a map with string keys of one of these, or a
-// struct of them without exported methods. A field's name must be one
-// identifier other than an alias such as AND, and a top-level name must not
-// be a builtin function, true, false, nil or $env. [Compile] returns a
+// The type of a var or field must be int, float64, string, bool,
+// [time.Duration], [time.Time], any, a slice or a map with string keys of
+// one of these, or a struct of them without exported methods. Its name must
+// be one identifier other than an alias such as AND, and a var's name must
+// not be a builtin function, true, false, nil or $env. [Compile] returns a
 // [github.com/SigNoz/baseplate.go/errors.TypeInvalidInput] error with
 // [CodeVarsInvalid] when vars breaks these rules.
 //
 // With vars of type struct{ Value string `expr:"value"` }:
 //
 //	value > 80           compile error (CodeTypeInvalid): string and int
-//	cluster.name = "c1"  compile error (CodeFieldUnknown): unknown field
-//	plan                 compile error (CodeFieldUnknown): unknown field
+//	cluster.name = "c1"  compile error (CodeNameUnknown): unknown var
+//	plan                 compile error (CodeNameUnknown): unknown var
 func TypedStatic(vars any) Env {
 	return Env{
 		static:  true,

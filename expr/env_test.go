@@ -306,11 +306,11 @@ func TestTypedStatic(t *testing.T) {
 			},
 		},
 		{
-			name: "MisspelledName_FieldUnknown",
+			name: "MisspelledVar_NameUnknown",
 			src:  `stauts_code = 200`,
 			expectedError: &tError{
-				code:        CodeFieldUnknown,
-				message:     "unknown field stauts_code; did you mean status_code?",
+				code:        CodeNameUnknown,
+				message:     "unknown var stauts_code; did you mean status_code?",
 				suggestions: []string{"status_code"},
 				from:        0,
 				to:          11,
@@ -319,10 +319,10 @@ func TestTypedStatic(t *testing.T) {
 			},
 		},
 		{
-			name: "MisspelledField_FieldUnknown",
+			name: "MisspelledField_NameUnknown",
 			src:  `tls.versoin = "1.3"`,
 			expectedError: &tError{
-				code:        CodeFieldUnknown,
+				code:        CodeNameUnknown,
 				message:     "unknown field tls.versoin; did you mean tls.version?",
 				suggestions: []string{"tls.version"},
 				from:        4,
@@ -332,11 +332,11 @@ func TestTypedStatic(t *testing.T) {
 			},
 		},
 		{
-			name: "UnknownNoCloseName_FieldUnknown",
+			name: "UnknownVarNoCloseName_NameUnknown",
 			src:  `latency < duration("1s")`,
 			expectedError: &tError{
-				code:    CodeFieldUnknown,
-				message: "unknown field latency",
+				code:    CodeNameUnknown,
+				message: "unknown var latency",
 				from:    0,
 				to:      7,
 				line:    1,

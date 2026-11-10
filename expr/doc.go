@@ -28,8 +28,8 @@
 //
 //	expression           Untyped                  TypedDynamic                TypedStatic
 //	value > 80           run error: string > int  type error: string and int  compile error: string and int
-//	cluster.name = "c1"  run error: no cluster    false                       compile error: unknown field
-//	plan                 false                    error: the result is nil    compile error: unknown field
+//	cluster.name = "c1"  run error: no cluster    false                       compile error: unknown var
+//	plan                 false                    error: the result is nil    compile error: unknown var
 //
 // An Untyped program is compiled once and knows no types until it runs,
 // so a mistake shows as [CodeRunFailed], a.b fails when a is missing, and a
@@ -56,9 +56,9 @@
 // # Schema, references and values
 //
 // [Env.Schema] describes an Env's names for a client, such as an editor
-// that checks expressions as they are typed: the declared fields of a
+// that checks expressions as they are typed: the declared vars of a
 // TypedStatic Env with their types, or an open schema, with the limits.
-// [SchemaOf] gives the fields of a struct alone.
+// [SchemaOf] gives the vars a struct declares alone.
 //
 // [Program.References] lists the variables an expression reads, as paths
 // such as tls.version. [Program.Values] runs each of them with a set of

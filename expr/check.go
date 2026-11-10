@@ -155,7 +155,7 @@ func (c *nameChecker) resolve(node ast.Node) (reflect.Type, string, bool) {
 			return c.top[i].t, n.Value, true
 		}
 
-		c.unknownField(n, "", n.Value, c.top)
+		c.unknownName(n, "", n.Value, c.top)
 	case *ast.MemberNode:
 		key, ok := n.Property.(*ast.StringNode)
 		if !ok || n.Method {
@@ -172,13 +172,13 @@ func (c *nameChecker) resolve(node ast.Node) (reflect.Type, string, bool) {
 			return fields[i].t, join(path, key.Value), true
 		}
 
-		c.unknownField(key, path, key.Value, fields)
+		c.unknownName(key, path, key.Value, fields)
 	}
 
 	return nil, "", false
 }
 
-func (c *nameChecker) unknownField(node ast.Node, path, name string, siblings []variable) {
+func (c *nameChecker) unknownName(node ast.Node, path, name string, siblings []variable) {
 	if c.err != nil {
 		return
 	}
@@ -188,7 +188,8 @@ func (c *nameChecker) unknownField(node ast.Node, path, name string, siblings []
 		names = append(names, sibling.name)
 	}
 
-	message := "unknown field " + join(path, name)
+	message := subject(join(path, name))
+	message = "unknown " + message
 
 	suggestion := suggest(name, names)
 	if suggestion != "" {
@@ -196,7 +197,7 @@ func (c *nameChecker) unknownField(node ast.Node, path, name string, siblings []
 		message += "; did you mean " + suggestion + "?"
 	}
 
-	c.fail(node, message, CodeFieldUnknown, suggestion)
+	c.fail(node, message, CodeNameUnknown, suggestion)
 }
 
 func (c *nameChecker) fail(node ast.Node, message string, code errors.Code, suggestion string) {

@@ -177,6 +177,6 @@ func ExampleTypedStatic() {
 	})
 	_, _ = fmt.Println(passed, err)
 	// Output:
-	// field_unknown unknown field tls.versoin; did you mean tls.version?
+	// name_unknown unknown field tls.versoin; did you mean tls.version?
 	// true <nil>
 }

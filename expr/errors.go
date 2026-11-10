@@ -21,9 +21,9 @@ var (
 	CodePatternInvalid     = errors.MustNewCode("pattern_invalid")
 	CodeMemoryExceeded     = errors.MustNewCode("memory_exceeded")
 	CodeVarsInvalid        = errors.MustNewCode("vars_invalid")
-	CodeFieldUnknown       = errors.MustNewCode("field_unknown")
+	CodeNameUnknown        = errors.MustNewCode("name_unknown")
 	CodeFunctionUnknown    = errors.MustNewCode("function_unknown")
-	CodeFieldTypeInvalid   = errors.MustNewCode("field_type_invalid")
+	CodeVarTypeInvalid     = errors.MustNewCode("var_type_invalid")
 )
 
 // PositionError is where in an expression's source an error is. It is the
