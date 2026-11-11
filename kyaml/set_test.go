@@ -82,6 +82,15 @@ func TestSet(t *testing.T) {
 			path:         []string{"café"},
 			expectedLine: "café: 60Gi # ☕",
 		},
+		{
+			// A comment repeating the old value must not be edited: the rewrite anchors at the
+			// scalar's node position, not the first textual match on the line.
+			name:         "ValueRepeatedInComment_OnlyScalarChanged",
+			input:        "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: 30Gi # was 30Gi\n",
+			path:         tStoragePath("data-0"),
+			expectedLine: "            storage: 60Gi # was 30Gi",
+			expectedKept: []string{"# was 30Gi"},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -110,6 +119,7 @@ func TestSet_Errors(t *testing.T) {
 		{name: "UnknownKey_PathNotFound", input: "spec:\n  a: 1\n", path: []string{"spec", "b"}, expectedCode: CodePathNotFound},
 		{name: "AbsentSequenceElement_PathNotFound", input: "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: 30Gi\n", path: tStoragePath("absent"), expectedCode: CodePathNotFound},
 		{name: "MappingTarget_NotScalar", input: "spec:\n  templates:\n    a: b\n", path: []string{"spec", "templates"}, expectedCode: CodeNotScalar},
+		{name: "SingleQuotedEscapedScalar_NotScalar", input: "name: 'it''s' # it's\n", path: []string{"name"}, expectedCode: CodeNotScalar},
 		{name: "EmptyScalar_NotScalar", input: "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage:\n", path: tStoragePath("data-0"), expectedCode: CodeNotScalar},
 		{name: "BlockScalar_NotScalar", input: "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: |\n              30Gi\n", path: tStoragePath("data-0"), expectedCode: CodeNotScalar},
 		{name: "TwoContentDocuments_MultipleDocuments", input: "kind: A\n---\nkind: B\n", path: []string{"kind"}, expectedCode: CodeMultipleDocuments},
@@ -123,6 +133,33 @@ func TestSet_Errors(t *testing.T) {
 			require.Error(t, err)
 			assert.Equal(t, errors.TypeInvalidInput, errors.TypeOf(err))
 			assert.Equal(t, testCase.expectedCode, errors.CodeOf(err))
+		})
+	}
+}
+
+func TestSet_UnsafeValue(t *testing.T) {
+	// A value that could carry a comment, key, quote, space, newline, or
+	// leading indicator into the document is refused before any edit.
+	testCases := []struct {
+		name  string
+		value string
+	}{
+		{name: "Comment", value: "60Gi # evil"},
+		{name: "Key", value: "a: b"},
+		{name: "Space", value: "60 Gi"},
+		{name: "Quote", value: "\"60Gi\""},
+		{name: "Newline", value: "60Gi\n- x"},
+		{name: "LeadingDash", value: "-flag"},
+		{name: "Empty", value: ""},
+		{name: "LeadingDot", value: ".leading"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := Set(YAML("kind: ConfigMap\n"), testCase.value, "kind")
+			require.Error(t, err)
+			assert.Equal(t, errors.TypeInvalidInput, errors.TypeOf(err))
+			assert.Equal(t, CodeUnsafeValue, errors.CodeOf(err))
 		})
 	}
 }

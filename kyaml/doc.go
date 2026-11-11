@@ -64,6 +64,7 @@
 // [CodeYAMLEmpty] for YAML with no document to convert, and
 // [CodeJSONInvalid] for JSON that doesn't parse. [Set] also returns
 // [CodeMultipleDocuments] for a multi-document stream, [CodePathNotFound]
-// when its path does not resolve, and [CodeNotScalar] when the path is not
-// a non-empty inline scalar.
+// when its path does not resolve, [CodeNotScalar] when the path is not an
+// in-place-editable scalar, and [CodeUnsafeValue] when the new value is not
+// a safe plain scalar.
 package kyaml
