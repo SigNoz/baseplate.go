@@ -277,49 +277,49 @@ func TestEditBlockScalar_NeverPanics(t *testing.T) {
 		name string
 		yaml string
 	}{
-		{"empty", ""},
-		{"literalBlock", "data:\n  config: |\n    a: b\n"},
-		{"strippedBlock", "data:\n  config: |-\n    a: b\n    c: d\n"},
-		{"blockWithBlankLines", "data:\n  config: |\n\n    a: b\n\n    c: d\ntrailing: x\n"},
-		{"plainScalar", "data:\n  config: plain\n"},
-		{"emptyBlock", "data:\n  config: |\n"},
-		{"deepBlock", "config: |\n  deep:\n    nested:\n      v: 1\n"},
-		{"invalid", "{"},
+		{"Empty", ""},
+		{"LiteralBlock", "data:\n  config: |\n    a: b\n"},
+		{"StrippedBlock", "data:\n  config: |-\n    a: b\n    c: d\n"},
+		{"BlockWithBlankLines", "data:\n  config: |\n\n    a: b\n\n    c: d\ntrailing: x\n"},
+		{"PlainScalar", "data:\n  config: plain\n"},
+		{"EmptyBlock", "data:\n  config: |\n"},
+		{"DeepBlock", "config: |\n  deep:\n    nested:\n      v: 1\n"},
+		{"Invalid", "{"},
 	}
 
 	paths := []struct {
 		name string
 		path []string
 	}{
-		{"dataConfig", []string{"data", "config"}},
-		{"config", []string{"config"}},
-		{"missing", []string{"missing"}},
-		{"emptyPath", []string{}},
+		{"DataConfig", []string{"data", "config"}},
+		{"Config", []string{"config"}},
+		{"Missing", []string{"missing"}},
+		{"EmptyPath", []string{}},
 	}
 
 	edits := []struct {
 		name string
 		edit func(YAML) (YAML, error)
 	}{
-		{"setKeyA", func(inner YAML) (YAML, error) { return Set(inner, "60", "a") }},
-		{"identity", func(inner YAML) (YAML, error) { return inner, nil }},
-		{"returnsInvalid", func(_ YAML) (YAML, error) { return YAML("broken: ["), nil }},
-		{"returnsError", func(_ YAML) (YAML, error) { return nil, errors.New(errors.TypeInvalidInput, CodeYAMLInvalid, "x") }},
+		{"SetKeyA", func(inner YAML) (YAML, error) { return Set(inner, "60", "a") }},
+		{"Identity", func(inner YAML) (YAML, error) { return inner, nil }},
+		{"ReturnsInvalid", func(_ YAML) (YAML, error) { return YAML("broken: ["), nil }},
+		{"ReturnsError", func(_ YAML) (YAML, error) { return nil, errors.New(errors.TypeInvalidInput, CodeYAMLInvalid, "x") }},
 	}
 
-	type panicCase struct {
+	type tPanicCase struct {
 		name  string
 		input string
 		path  []string
 		edit  func(YAML) (YAML, error)
 	}
 
-	var testCases []panicCase
+	var testCases []tPanicCase
 	for _, in := range inputs {
 		for _, p := range paths {
 			for _, e := range edits {
-				testCases = append(testCases, panicCase{
-					name:  in.name + "/" + p.name + "/" + e.name,
+				testCases = append(testCases, tPanicCase{
+					name:  in.name + "_" + p.name + "_" + e.name,
 					input: in.yaml,
 					path:  p.path,
 					edit:  e.edit,

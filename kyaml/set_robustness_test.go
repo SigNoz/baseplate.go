@@ -147,62 +147,62 @@ func TestSet_NeverPanics(t *testing.T) {
 		name string
 		yaml string
 	}{
-		{"empty", ""},
-		{"blankLines", "\n\n"},
-		{"twoSeparators", "---\n---\n"},
-		{"simpleMapping", "a: b\n"},
-		{"singleQuotedEscape", "a: 'it''s' # it's\n"},
-		{"literalBlock", "a: |\n  block\n  scalar\n"},
-		{"foldedBlock", "a: >\n  folded\n"},
-		{"flowSequence", "a: [1, 2, 3]\n"},
-		{"flowMapping", "a: {b: c}\n"},
-		{"sequence", "list:\n- 30Gi\n- 30Gi\n"},
-		{"deepNesting", "deep:\n  a:\n    b:\n      c: 30Gi\n"},
-		{"multibyte", "café: 30Gi # ☕ over here\n"},
-		{"doubleQuotedEscape", "a: \"escaped \\\" quote\"\n"},
-		{"nullValue", "a:\n"},
-		{"invalid", "{"},
+		{"Empty", ""},
+		{"BlankLines", "\n\n"},
+		{"TwoSeparators", "---\n---\n"},
+		{"SimpleMapping", "a: b\n"},
+		{"SingleQuotedEscape", "a: 'it''s' # it's\n"},
+		{"LiteralBlock", "a: |\n  block\n  scalar\n"},
+		{"FoldedBlock", "a: >\n  folded\n"},
+		{"FlowSequence", "a: [1, 2, 3]\n"},
+		{"FlowMapping", "a: {b: c}\n"},
+		{"Sequence", "list:\n- 30Gi\n- 30Gi\n"},
+		{"DeepNesting", "deep:\n  a:\n    b:\n      c: 30Gi\n"},
+		{"Multibyte", "café: 30Gi # ☕ over here\n"},
+		{"DoubleQuotedEscape", "a: \"escaped \\\" quote\"\n"},
+		{"NullValue", "a:\n"},
+		{"Invalid", "{"},
 	}
 
 	paths := []struct {
 		name string
 		path []string
 	}{
-		{"topKey", []string{"a"}},
-		{"nestedKey", []string{"a", "b"}},
-		{"sequenceIndex", []string{"list", "0"}},
-		{"deepKey", []string{"deep", "a", "b", "c"}},
-		{"multibyteKey", []string{"café"}},
-		{"missingKey", []string{"missing"}},
-		{"emptyPath", []string{}},
+		{"TopKey", []string{"a"}},
+		{"NestedKey", []string{"a", "b"}},
+		{"SequenceIndex", []string{"list", "0"}},
+		{"DeepKey", []string{"deep", "a", "b", "c"}},
+		{"MultibyteKey", []string{"café"}},
+		{"MissingKey", []string{"missing"}},
+		{"EmptyPath", []string{}},
 	}
 
 	values := []struct {
 		name  string
 		value string
 	}{
-		{"quantity", "60Gi"},
-		{"empty", ""},
-		{"spaced", "x y"},
-		{"hashed", "has # hash"},
-		{"plain", "ok"},
-		{"leadingDash", "-dash"},
-		{"newline", "a\nb"},
+		{"Quantity", "60Gi"},
+		{"Empty", ""},
+		{"Spaced", "x y"},
+		{"Hashed", "has # hash"},
+		{"Plain", "ok"},
+		{"LeadingDash", "-dash"},
+		{"Newline", "a\nb"},
 	}
 
-	type panicCase struct {
+	type tPanicCase struct {
 		name  string
 		input string
 		path  []string
 		value string
 	}
 
-	var testCases []panicCase
+	var testCases []tPanicCase
 	for _, in := range inputs {
 		for _, p := range paths {
 			for _, v := range values {
-				testCases = append(testCases, panicCase{
-					name:  in.name + "/" + p.name + "/" + v.name,
+				testCases = append(testCases, tPanicCase{
+					name:  in.name + "_" + p.name + "_" + v.name,
 					input: in.yaml,
 					path:  p.path,
 					value: v.value,
