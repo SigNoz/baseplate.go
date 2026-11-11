@@ -10,9 +10,10 @@ import (
 	"github.com/SigNoz/baseplate.go/errors"
 )
 
-// nonCanonical is deliberately NOT in canonical field order (volumeClaimTemplates would sort before
-// podTemplates under Format) and carries a comment, so it proves Set preserves order and comments
-// where ToJSON/FromJSON would reorder and strip them.
+// nonCanonical is deliberately NOT in canonical field order
+// (volumeClaimTemplates sorts above podTemplates under Format) and has a
+// comment, so it proves Set preserves order and comments where ToJSON and
+// FromJSON would reorder and strip them.
 const nonCanonical = `apiVersion: clickhouse.altinity.com/v1
 kind: ClickHouseInstallation
 metadata:
