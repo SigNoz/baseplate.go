@@ -38,41 +38,55 @@ func TestSet(t *testing.T) {
 	testCases := []struct {
 		name         string
 		input        string
+		path         []string
 		expectedLine string   // The single line expected after the edit.
 		expectedKept []string // Substrings that must still be present.
 	}{
 		{
 			name:         "NonCanonicalOrderWithComment_OrderCommentSiblingKept",
 			input:        "apiVersion: clickhouse.altinity.com/v1\nkind: ClickHouseInstallation\nmetadata:\n  name: clickhouse # legend: managed by zeus\nspec:\n  templates:\n    podTemplates:\n    - name: default\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: 30Gi\n    - name: default\n      spec:\n        resources:\n          requests:\n            storage: 15Gi\n",
+			path:         tStoragePath("data-0"),
 			expectedLine: "            storage: 60Gi",
 			expectedKept: []string{"# legend: managed by zeus", "storage: 15Gi", "podTemplates:"},
 		},
 		{
 			name:         "ExtraSpacesAfterColon_SpacingKept",
 			input:        "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage:    30Gi\n",
+			path:         tStoragePath("data-0"),
 			expectedLine: "            storage:    60Gi",
 		},
 		{
 			name:         "WideSequenceIndent_IndentKept",
 			input:        "spec:\n  templates:\n    volumeClaimTemplates:\n      - name: data-0\n        spec:\n          resources:\n            requests:\n              storage: 30Gi\n",
+			path:         tStoragePath("data-0"),
 			expectedLine: "              storage: 60Gi",
 		},
 		{
 			name:         "LeadingDocumentSeparator_SeparatorKept",
 			input:        "---\nspec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: 30Gi\n",
+			path:         tStoragePath("data-0"),
 			expectedLine: "            storage: 60Gi",
 			expectedKept: []string{"---"},
 		},
 		{
 			name:         "DoubleQuotedValue_QuotesKept",
 			input:        "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: \"30Gi\"\n",
+			path:         tStoragePath("data-0"),
 			expectedLine: "            storage: \"60Gi\"",
+		},
+		{
+			// Multi-byte runes before the value on its line: the rune-based column must map to the
+			// right byte offset, so the ASCII value is still found and replaced.
+			name:         "MultiByteCharsBeforeValue_ValueFound",
+			input:        "café: 30Gi # ☕\n",
+			path:         []string{"café"},
+			expectedLine: "café: 60Gi # ☕",
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			out, err := Set(YAML(testCase.input), "60Gi", tStoragePath("data-0")...)
+			out, err := Set(YAML(testCase.input), "60Gi", testCase.path...)
 			require.NoError(t, err)
 
 			changed := tChangedLines(t, testCase.input, string(out))
@@ -96,6 +110,8 @@ func TestSet_Errors(t *testing.T) {
 		{name: "UnknownKey_PathNotFound", input: "spec:\n  a: 1\n", path: []string{"spec", "b"}, expectedCode: CodePathNotFound},
 		{name: "AbsentSequenceElement_PathNotFound", input: "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: 30Gi\n", path: tStoragePath("absent"), expectedCode: CodePathNotFound},
 		{name: "MappingTarget_NotScalar", input: "spec:\n  templates:\n    a: b\n", path: []string{"spec", "templates"}, expectedCode: CodeNotScalar},
+		{name: "EmptyScalar_NotScalar", input: "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage:\n", path: tStoragePath("data-0"), expectedCode: CodeNotScalar},
+		{name: "BlockScalar_NotScalar", input: "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: |\n              30Gi\n", path: tStoragePath("data-0"), expectedCode: CodeNotScalar},
 		{name: "TwoContentDocuments_MultipleDocuments", input: "kind: A\n---\nkind: B\n", path: []string{"kind"}, expectedCode: CodeMultipleDocuments},
 		{name: "UnclosedFlowSequence_YAMLInvalid", input: "kind: [ConfigMap\n", path: []string{"kind"}, expectedCode: CodeYAMLInvalid},
 		{name: "Empty_YAMLEmpty", input: "", path: []string{"kind"}, expectedCode: CodeYAMLEmpty},

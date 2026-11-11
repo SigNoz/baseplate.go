@@ -27,7 +27,8 @@ import (
 // error with [CodeYAMLInvalid] or [CodeYAMLEmpty] for invalid or empty
 // input, [CodeMultipleDocuments] for a multi-document stream,
 // [CodePathNotFound] when path does not resolve, and [CodeNotScalar] when
-// path resolves to a mapping or sequence rather than a scalar.
+// path resolves to a mapping, a sequence, an empty scalar, or a scalar Set
+// cannot edit in place (a block, folded, or multi-line value).
 func Set(y YAML, value string, path ...string) (YAML, error) {
 	// Reuse ToJSON only to validate and count content documents (it reports
 	// empty/invalid the same way the other entry points do); the edit itself
@@ -56,8 +57,8 @@ func Set(y YAML, value string, path ...string) (YAML, error) {
 	}
 
 	yn := node.YNode()
-	if yn.Kind != kyyaml.ScalarNode {
-		return nil, errors.Newf(errors.TypeInvalidInput, CodeNotScalar, "path %v is not a scalar", path)
+	if yn.Kind != kyyaml.ScalarNode || yn.Value == "" {
+		return nil, errors.Newf(errors.TypeInvalidInput, CodeNotScalar, "path %v is not a non-empty scalar", path)
 	}
 
 	return rewriteScalar(y, yn.Line, yn.Column, yn.Value, value)
@@ -75,14 +76,19 @@ func rewriteScalar(src YAML, line, column int, old, value string) (YAML, error) 
 		return nil, errors.Newf(errors.TypeInvalidInput, CodeYAMLInvalid, "value is on line %d, out of range", line)
 	}
 
-	start := column - 1
-	if start < 0 || start > len(lines[i]) {
+	// Column is a 1-based rune index; convert it to a byte offset into the line.
+	runes := []rune(string(lines[i]))
+	if column < 1 || column-1 > len(runes) {
 		return nil, errors.Newf(errors.TypeInvalidInput, CodeYAMLInvalid, "value column %d is out of range on line %d", column, line)
 	}
 
+	start := len(string(runes[:column-1]))
+
 	rel := bytes.Index(lines[i][start:], []byte(old))
 	if rel < 0 {
-		return nil, errors.Newf(errors.TypeInvalidInput, CodeYAMLInvalid, "value %q not found at line %d column %d", old, line, column)
+		// A block, folded, line-wrapped, or escaped scalar does not appear verbatim here: it is a
+		// valid scalar Set cannot edit in place, not invalid input.
+		return nil, errors.Newf(errors.TypeInvalidInput, CodeNotScalar, "value %q is not an inline scalar at line %d column %d", old, line, column)
 	}
 
 	at := start + rel

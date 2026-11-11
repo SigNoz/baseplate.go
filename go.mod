@@ -7,6 +7,9 @@ require (
 	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
 	k8s.io/apimachinery v0.37.2
+	// Do not bump past v0.21.0 while on apimachinery v0.37.2: v0.21.3+ pulls a kube-openapi that
+	// needs structured-merge-diff/v7, which conflicts with apimachinery v0.37.2 (v6) and breaks any
+	// consumer that also uses client-go. Raise apimachinery (to a v7 line) and this together.
 	sigs.k8s.io/kustomize/kyaml v0.21.0
 	sigs.k8s.io/yaml v1.6.0
 )

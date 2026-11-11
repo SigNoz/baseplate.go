@@ -38,6 +38,18 @@
 // parsers, Kubernetes among them, would read as another type, such as "on"
 // and "0755", and it doesn't wrap long lines.
 //
+// # Editing one value
+//
+// [Set] changes a single scalar in place, selected by a lookup path,
+// without reformatting the rest of the document. Unlike the JSON round trip
+// above, it keeps field order, comments, quoting and layout, so the result
+// differs by only the one value. Use it for a small, reviewable edit such
+// as growing a PVC's storage in an overlay:
+//
+//	out, err := kyaml.Set(overlay, "40Gi",
+//		"spec", "templates", "volumeClaimTemplates", "[name=data-0]",
+//		"spec", "resources", "requests", "storage")
+//
 // # Types
 //
 // [YAML] holds a YAML stream and [encoding/json.RawMessage] holds a JSON
@@ -50,5 +62,8 @@
 // Every error is a [github.com/SigNoz/baseplate.go/errors.TypeInvalidInput]
 // error, with [CodeYAMLInvalid] for YAML that doesn't parse,
 // [CodeYAMLEmpty] for YAML with no document to convert, and
-// [CodeJSONInvalid] for JSON that doesn't parse.
+// [CodeJSONInvalid] for JSON that doesn't parse. [Set] also returns
+// [CodeMultipleDocuments] for a multi-document stream, [CodePathNotFound]
+// when its path does not resolve, and [CodeNotScalar] when the path is not
+// a non-empty inline scalar.
 package kyaml
