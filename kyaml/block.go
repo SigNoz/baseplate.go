@@ -2,6 +2,7 @@ package kyaml
 
 import (
 	"bytes"
+	"strings"
 
 	kyyaml "sigs.k8s.io/kustomize/kyaml/yaml"
 
@@ -77,6 +78,12 @@ func editBlock(src YAML, yn *kyyaml.Node, edit func(YAML) (YAML, error)) (YAML, 
 		return nil, errors.Newf(errors.TypeInvalidInput, CodeYAMLInvalid, "block header is on line %d, out of range", yn.Line)
 	}
 
+	// An empty block has no body: bail before the scan, which would otherwise
+	// mistake a following sibling line for the body.
+	if strings.TrimRight(yn.Value, "\n") == "" {
+		return nil, errors.Newf(errors.TypeInvalidInput, CodeNotBlockScalar, "block scalar at line %d is empty", yn.Line)
+	}
+
 	// The body runs from the line after the header. The first non-blank line
 	// sets the block's content indentation; the body ends at the first
 	// non-blank line indented less than that (its parent key, or a sibling,
@@ -106,8 +113,17 @@ func editBlock(src YAML, yn *kyyaml.Node, edit func(YAML) (YAML, error)) (YAML, 
 
 	orig := lines[bodyStart : lastContent+1]
 	innerLines := dedentLines(orig, bodyIndent)
+	inner := bytes.Join(innerLines, []byte("\n"))
 
-	edited, err := edit(YAML(bytes.Join(innerLines, []byte("\n"))))
+	// The dedented body must equal the scalar's decoded value. If it does not,
+	// the body boundary was misread — such as an explicit indentation
+	// indicator ("|2") the scan does not resolve — so refuse rather than hand
+	// the callback the wrong text.
+	if strings.TrimRight(string(inner), "\n") != strings.TrimRight(yn.Value, "\n") {
+		return nil, errors.Newf(errors.TypeInvalidInput, CodeNotBlockScalar, "could not isolate the block scalar body at line %d", yn.Line)
+	}
+
+	edited, err := edit(YAML(inner))
 	if err != nil {
 		return nil, err
 	}

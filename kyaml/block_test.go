@@ -179,6 +179,8 @@ func TestEditBlockScalar_Errors(t *testing.T) {
 		{name: "PlainScalarTarget_NotBlockScalar", input: "data:\n  config: plain\n", outerPath: []string{"data", "config"}, edit: setLimit, expectedCode: CodeNotBlockScalar},
 		{name: "MappingTarget_NotBlockScalar", input: "data:\n  config:\n    a: b\n", outerPath: []string{"data", "config"}, edit: setLimit, expectedCode: CodeNotBlockScalar},
 		{name: "FoldedScalarTarget_NotBlockScalar", input: "data:\n  config: >-\n    message: hello\n    world\n", outerPath: []string{"data", "config"}, edit: setLimit, expectedCode: CodeNotBlockScalar},
+		{name: "EmptyBlockWithSibling_NotBlockScalar", input: "data:\n  config: |\n  other: keep\n", outerPath: []string{"data", "config"}, edit: func(inner YAML) (YAML, error) { return Set(inner, "updated", "other") }, expectedCode: CodeNotBlockScalar},
+		{name: "ExplicitIndentationIndicator_NotBlockScalar", input: "data:\n  config: |2\n      # comment\n    a: b\n", outerPath: []string{"data", "config"}, edit: func(inner YAML) (YAML, error) { return Set(inner, "updated", "a") }, expectedCode: CodeNotBlockScalar},
 		{name: "UnknownPath_PathNotFound", input: "data:\n  config: |\n    a: b\n", outerPath: []string{"data", "missing"}, edit: setLimit, expectedCode: CodePathNotFound},
 		{name: "MultipleDocuments", input: "data:\n  config: |\n    a: b\n---\nkind: X\n", outerPath: []string{"data", "config"}, edit: setLimit, expectedCode: CodeMultipleDocuments},
 		{name: "EmptyInput_YAMLEmpty", input: "", outerPath: []string{"data", "config"}, edit: setLimit, expectedCode: CodeYAMLEmpty},
