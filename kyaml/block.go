@@ -115,11 +115,12 @@ func editBlock(src YAML, yn *kyyaml.Node, edit func(YAML) (YAML, error)) (YAML, 
 	innerLines := dedentLines(orig, bodyIndent)
 	inner := bytes.Join(innerLines, []byte("\n"))
 
-	// The dedented body must equal the scalar's decoded value. If it does not,
-	// the body boundary was misread — such as an explicit indentation
-	// indicator ("|2") the scan does not resolve — so refuse rather than hand
-	// the callback the wrong text.
-	if strings.TrimRight(string(inner), "\n") != strings.TrimRight(yn.Value, "\n") {
+	// The dedented body must equal the scalar's decoded value, which yaml.v3
+	// has normalized to "\n" line endings, so compare with carriage returns
+	// removed. A mismatch means the body boundary was misread — such as an
+	// explicit indentation indicator ("|2") the scan does not resolve — so
+	// refuse rather than hand the callback the wrong text.
+	if strings.TrimRight(strings.ReplaceAll(string(inner), "\r", ""), "\n") != strings.TrimRight(yn.Value, "\n") {
 		return nil, errors.Newf(errors.TypeInvalidInput, CodeNotBlockScalar, "could not isolate the block scalar body at line %d", yn.Line)
 	}
 

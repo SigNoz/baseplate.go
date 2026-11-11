@@ -256,6 +256,20 @@ func TestEditBlockScalar_PreservesUntouchedBytes(t *testing.T) {
 	assert.Contains(t, string(changed), "    a: 1\n      \n", "the whitespace-only interior line keeps its spaces")
 }
 
+// TestEditBlockScalar_PreservesCRLF checks that a config with CRLF line
+// endings can be edited and keeps its carriage returns: yaml normalizes the
+// decoded value to "\n", so the body-isolation guard must compare without
+// them, and unchanged lines are restored from their original CRLF bytes.
+func TestEditBlockScalar_PreservesCRLF(t *testing.T) {
+	input := "data:\r\n  config: |\r\n    a: 1\r\n    b: 2\r\n"
+
+	out, err := EditBlockScalar(YAML(input), []string{"data", "config"}, func(inner YAML) (YAML, error) {
+		return Set(inner, "3", "b")
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "data:\r\n  config: |\r\n    a: 1\r\n    b: 3\r\n", string(out))
+}
+
 // TestEditBlockScalar_NeverPanics feeds hostile inputs, paths, and
 // callbacks and only requires that EditBlockScalar returns without
 // panicking and that any success is still valid YAML.
