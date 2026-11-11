@@ -13,7 +13,7 @@ import (
 // from y by only the one value. Use it to change a single field of a
 // hand-authored manifest without reformatting the rest (e.g. a PVC's size).
 //
-// path is a kustomize kyaml lookup path; a sequence element is selected
+// The path is a kustomize kyaml lookup path; a sequence element is selected
 // with a "[field=value]" segment, e.g.
 //
 //	Set(overlay, "40Gi",
