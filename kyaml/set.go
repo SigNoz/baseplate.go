@@ -24,15 +24,15 @@ import (
 //	    "spec", "resources", "requests", "storage")
 //
 // Set edits in place only when it can do so without changing the
-// document's meaning, so its contract is deliberately narrow. value must be
-// a safe plain scalar: it has to start with an ASCII letter or digit and
-// hold only those plus "._+/=-", which fits a quantity, size, or image tag.
-// Such a value can never introduce a comment, key, quote, or newline; any
-// other value is refused with [CodeUnsafeValue]. The target must be a plain
-// or double-quoted scalar whose text appears verbatim at its node position.
-// A single-quoted, block, folded, or otherwise escaped scalar is refused
-// with [CodeNotScalar] rather than edited by searching the line, which
-// could match a comment.
+// document's meaning, so its contract is deliberately narrow. The value
+// must be a safe plain scalar: it has to start with an ASCII letter or
+// digit and hold only those plus "._+/=-", which fits a quantity, size, or
+// image tag. Such a value can never introduce a comment, key, quote, or
+// newline; any other value is refused with [CodeUnsafeValue]. The target
+// must be a plain or double-quoted scalar whose text appears verbatim at
+// its node position. A single-quoted, block, folded, or otherwise escaped
+// scalar is refused with [CodeNotScalar] rather than edited by searching
+// the line, which could match a comment.
 //
 // Set operates on a single-document stream. It returns a TypeInvalidInput
 // error with [CodeYAMLInvalid] or [CodeYAMLEmpty] for invalid or empty
