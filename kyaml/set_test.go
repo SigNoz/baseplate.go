@@ -15,7 +15,8 @@ func tStoragePath(vct string) []string {
 	return []string{"spec", "templates", "volumeClaimTemplates", "[name=" + vct + "]", "spec", "resources", "requests", "storage"}
 }
 
-// tChangedLines returns the lines that differ between before and after, requiring an equal count.
+// tChangedLines returns the lines that differ between before and after. It
+// requires the two to have an equal line count.
 func tChangedLines(t *testing.T, before, after string) []string {
 	t.Helper()
 
@@ -37,8 +38,8 @@ func TestSet(t *testing.T) {
 	testCases := []struct {
 		name         string
 		input        string
-		expectedLine string   // the single line expected after the edit
-		expectedKept []string // substrings that must still be present
+		expectedLine string   // The single line expected after the edit.
+		expectedKept []string // Substrings that must still be present.
 	}{
 		{
 			name:         "NonCanonicalOrderWithComment_OrderCommentSiblingKept",
