@@ -143,47 +143,81 @@ func TestSet_ChangesExactlyOneLeaf(t *testing.T) {
 // success is still valid YAML. A format-preserving byte editor driven by node
 // positions must never index out of range or emit garbage.
 func TestSet_NeverPanics(t *testing.T) {
-	inputs := []string{
-		"",
-		"\n\n",
-		"---\n---\n",
-		"a: b\n",
-		"a: 'it''s' # it's\n",
-		"a: |\n  block\n  scalar\n",
-		"a: >\n  folded\n",
-		"a: [1, 2, 3]\n",
-		"a: {b: c}\n",
-		"list:\n- 30Gi\n- 30Gi\n",
-		"deep:\n  a:\n    b:\n      c: 30Gi\n",
-		"café: 30Gi # ☕ over here\n",
-		"a: \"escaped \\\" quote\"\n",
-		"a:\n",
-		"{",
+	inputs := []struct {
+		name string
+		yaml string
+	}{
+		{"empty", ""},
+		{"blankLines", "\n\n"},
+		{"twoSeparators", "---\n---\n"},
+		{"simpleMapping", "a: b\n"},
+		{"singleQuotedEscape", "a: 'it''s' # it's\n"},
+		{"literalBlock", "a: |\n  block\n  scalar\n"},
+		{"foldedBlock", "a: >\n  folded\n"},
+		{"flowSequence", "a: [1, 2, 3]\n"},
+		{"flowMapping", "a: {b: c}\n"},
+		{"sequence", "list:\n- 30Gi\n- 30Gi\n"},
+		{"deepNesting", "deep:\n  a:\n    b:\n      c: 30Gi\n"},
+		{"multibyte", "café: 30Gi # ☕ over here\n"},
+		{"doubleQuotedEscape", "a: \"escaped \\\" quote\"\n"},
+		{"nullValue", "a:\n"},
+		{"invalid", "{"},
 	}
 
-	paths := [][]string{
-		{"a"},
-		{"a", "b"},
-		{"list", "0"},
-		{"deep", "a", "b", "c"},
-		{"café"},
-		{"missing"},
-		{},
+	paths := []struct {
+		name string
+		path []string
+	}{
+		{"topKey", []string{"a"}},
+		{"nestedKey", []string{"a", "b"}},
+		{"sequenceIndex", []string{"list", "0"}},
+		{"deepKey", []string{"deep", "a", "b", "c"}},
+		{"multibyteKey", []string{"café"}},
+		{"missingKey", []string{"missing"}},
+		{"emptyPath", []string{}},
 	}
 
-	values := []string{"60Gi", "", "x y", "has # hash", "ok", "-dash", "a\nb"}
+	values := []struct {
+		name  string
+		value string
+	}{
+		{"quantity", "60Gi"},
+		{"empty", ""},
+		{"spaced", "x y"},
+		{"hashed", "has # hash"},
+		{"plain", "ok"},
+		{"leadingDash", "-dash"},
+		{"newline", "a\nb"},
+	}
 
-	for i, in := range inputs {
-		for j, p := range paths {
-			for k, v := range values {
-				t.Run(fmt.Sprintf("input%d/path%d/value%d", i, j, k), func(t *testing.T) {
-					out, err := Set(YAML(in), v, p...)
-					if err == nil {
-						_, jerr := ToJSON(out)
-						assert.NoError(t, jerr, "input=%q path=%v value=%q produced invalid YAML: %q", in, p, v, string(out))
-					}
+	type panicCase struct {
+		name  string
+		input string
+		path  []string
+		value string
+	}
+
+	var testCases []panicCase
+	for _, in := range inputs {
+		for _, p := range paths {
+			for _, v := range values {
+				testCases = append(testCases, panicCase{
+					name:  in.name + "/" + p.name + "/" + v.name,
+					input: in.yaml,
+					path:  p.path,
+					value: v.value,
 				})
 			}
 		}
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			out, err := Set(YAML(testCase.input), testCase.value, testCase.path...)
+			if err == nil {
+				_, jerr := ToJSON(out)
+				assert.NoError(t, jerr, "produced invalid YAML: %q", string(out))
+			}
+		})
 	}
 }

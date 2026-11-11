@@ -1,7 +1,6 @@
 package kyaml
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -274,42 +273,68 @@ func TestEditBlockScalar_PreservesCRLF(t *testing.T) {
 // callbacks and only requires that EditBlockScalar returns without
 // panicking and that any success is still valid YAML.
 func TestEditBlockScalar_NeverPanics(t *testing.T) {
-	inputs := []string{
-		"",
-		"data:\n  config: |\n    a: b\n",
-		"data:\n  config: |-\n    a: b\n    c: d\n",
-		"data:\n  config: |\n\n    a: b\n\n    c: d\ntrailing: x\n",
-		"data:\n  config: plain\n",
-		"data:\n  config: |\n",
-		"config: |\n  deep:\n    nested:\n      v: 1\n",
-		"{",
+	inputs := []struct {
+		name string
+		yaml string
+	}{
+		{"empty", ""},
+		{"literalBlock", "data:\n  config: |\n    a: b\n"},
+		{"strippedBlock", "data:\n  config: |-\n    a: b\n    c: d\n"},
+		{"blockWithBlankLines", "data:\n  config: |\n\n    a: b\n\n    c: d\ntrailing: x\n"},
+		{"plainScalar", "data:\n  config: plain\n"},
+		{"emptyBlock", "data:\n  config: |\n"},
+		{"deepBlock", "config: |\n  deep:\n    nested:\n      v: 1\n"},
+		{"invalid", "{"},
 	}
 
-	paths := [][]string{
-		{"data", "config"},
-		{"config"},
-		{"missing"},
-		{},
+	paths := []struct {
+		name string
+		path []string
+	}{
+		{"dataConfig", []string{"data", "config"}},
+		{"config", []string{"config"}},
+		{"missing", []string{"missing"}},
+		{"emptyPath", []string{}},
 	}
 
-	edits := []func(YAML) (YAML, error){
-		func(inner YAML) (YAML, error) { return Set(inner, "60", "a") },
-		func(inner YAML) (YAML, error) { return inner, nil },
-		func(_ YAML) (YAML, error) { return YAML("broken: ["), nil },
-		func(_ YAML) (YAML, error) { return nil, errors.New(errors.TypeInvalidInput, CodeYAMLInvalid, "x") },
+	edits := []struct {
+		name string
+		edit func(YAML) (YAML, error)
+	}{
+		{"setKeyA", func(inner YAML) (YAML, error) { return Set(inner, "60", "a") }},
+		{"identity", func(inner YAML) (YAML, error) { return inner, nil }},
+		{"returnsInvalid", func(_ YAML) (YAML, error) { return YAML("broken: ["), nil }},
+		{"returnsError", func(_ YAML) (YAML, error) { return nil, errors.New(errors.TypeInvalidInput, CodeYAMLInvalid, "x") }},
 	}
 
-	for i, in := range inputs {
-		for j, p := range paths {
-			for k, e := range edits {
-				t.Run(fmt.Sprintf("input%d/path%d/edit%d", i, j, k), func(t *testing.T) {
-					out, err := EditBlockScalar(YAML(in), p, e)
-					if err == nil {
-						_, jerr := ToJSON(out)
-						assert.NoError(t, jerr, "input=%q path=%v produced invalid YAML: %q", in, p, string(out))
-					}
+	type panicCase struct {
+		name  string
+		input string
+		path  []string
+		edit  func(YAML) (YAML, error)
+	}
+
+	var testCases []panicCase
+	for _, in := range inputs {
+		for _, p := range paths {
+			for _, e := range edits {
+				testCases = append(testCases, panicCase{
+					name:  in.name + "/" + p.name + "/" + e.name,
+					input: in.yaml,
+					path:  p.path,
+					edit:  e.edit,
 				})
 			}
 		}
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			out, err := EditBlockScalar(YAML(testCase.input), testCase.path, testCase.edit)
+			if err == nil {
+				_, jerr := ToJSON(out)
+				assert.NoError(t, jerr, "produced invalid YAML: %q", string(out))
+			}
+		})
 	}
 }
