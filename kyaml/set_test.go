@@ -10,77 +10,102 @@ import (
 	"github.com/SigNoz/baseplate.go/errors"
 )
 
-// nonCanonical is deliberately NOT in canonical field order
-// (volumeClaimTemplates sorts above podTemplates under Format) and has a
-// comment, so it proves Set preserves order and comments where ToJSON and
-// FromJSON would reorder and strip them.
-const nonCanonical = `apiVersion: clickhouse.altinity.com/v1
-kind: ClickHouseInstallation
-metadata:
-  name: clickhouse # legend: managed by zeus
-spec:
-  templates:
-    podTemplates:
-    - name: default
-    volumeClaimTemplates:
-    - name: data-0
-      spec:
-        resources:
-          requests:
-            storage: 30Gi
-    - name: default
-      spec:
-        resources:
-          requests:
-            storage: 15Gi
-`
+// tStoragePath is the lookup path to a named volumeClaimTemplate's storage.
+func tStoragePath(vct string) []string {
+	return []string{"spec", "templates", "volumeClaimTemplates", "[name=" + vct + "]", "spec", "resources", "requests", "storage"}
+}
 
-func TestSet_PreservesEverythingButTheValue(t *testing.T) {
-	out, err := Set(YAML(nonCanonical), "40Gi",
-		"spec", "templates", "volumeClaimTemplates", "[name=data-0]",
-		"spec", "resources", "requests", "storage")
-	require.NoError(t, err)
+// tChangedLines returns the lines that differ between before and after, requiring an equal count.
+func tChangedLines(t *testing.T, before, after string) []string {
+	t.Helper()
 
-	in := strings.Split(nonCanonical, "\n")
-	got := strings.Split(string(out), "\n")
-	require.Equal(t, len(in), len(got), "line count must not change")
+	b := strings.Split(before, "\n")
+	a := strings.Split(after, "\n")
+	require.Equal(t, len(b), len(a), "line count must not change")
 
-	changed := 0
-	for i := range in {
-		if in[i] != got[i] {
-			changed++
-			assert.Contains(t, got[i], "40Gi")
-			assert.Contains(t, in[i], "storage")
+	var changed []string
+	for i := range b {
+		if b[i] != a[i] {
+			changed = append(changed, a[i])
 		}
 	}
-	assert.Equal(t, 1, changed, "only the data-0 storage line may change")
 
-	// The comment survives and the sibling is untouched (ToJSON/FromJSON would lose both).
-	assert.Contains(t, string(out), "# legend: managed by zeus")
-	assert.Contains(t, string(out), "storage: 15Gi")
+	return changed
+}
+
+func TestSet(t *testing.T) {
+	testCases := []struct {
+		name         string
+		input        string
+		expectedLine string   // the single line expected after the edit
+		expectedKept []string // substrings that must still be present
+	}{
+		{
+			name:         "NonCanonicalOrderWithComment_OrderCommentSiblingKept",
+			input:        "apiVersion: clickhouse.altinity.com/v1\nkind: ClickHouseInstallation\nmetadata:\n  name: clickhouse # legend: managed by zeus\nspec:\n  templates:\n    podTemplates:\n    - name: default\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: 30Gi\n    - name: default\n      spec:\n        resources:\n          requests:\n            storage: 15Gi\n",
+			expectedLine: "            storage: 60Gi",
+			expectedKept: []string{"# legend: managed by zeus", "storage: 15Gi", "podTemplates:"},
+		},
+		{
+			name:         "ExtraSpacesAfterColon_SpacingKept",
+			input:        "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage:    30Gi\n",
+			expectedLine: "            storage:    60Gi",
+		},
+		{
+			name:         "WideSequenceIndent_IndentKept",
+			input:        "spec:\n  templates:\n    volumeClaimTemplates:\n      - name: data-0\n        spec:\n          resources:\n            requests:\n              storage: 30Gi\n",
+			expectedLine: "              storage: 60Gi",
+		},
+		{
+			name:         "LeadingDocumentSeparator_SeparatorKept",
+			input:        "---\nspec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: 30Gi\n",
+			expectedLine: "            storage: 60Gi",
+			expectedKept: []string{"---"},
+		},
+		{
+			name:         "DoubleQuotedValue_QuotesKept",
+			input:        "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: \"30Gi\"\n",
+			expectedLine: "            storage: \"60Gi\"",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			out, err := Set(YAML(testCase.input), "60Gi", tStoragePath("data-0")...)
+			require.NoError(t, err)
+
+			changed := tChangedLines(t, testCase.input, string(out))
+			require.Len(t, changed, 1, "only the targeted value may change")
+			assert.Equal(t, testCase.expectedLine, changed[0])
+
+			for _, kept := range testCase.expectedKept {
+				assert.Contains(t, string(out), kept)
+			}
+		})
+	}
 }
 
 func TestSet_Errors(t *testing.T) {
 	testCases := []struct {
 		name         string
-		input        YAML
+		input        string
 		path         []string
 		expectedCode errors.Code
 	}{
-		{name: "PathNotFound", input: YAML(nonCanonical), path: []string{"spec", "nope"}, expectedCode: CodePathNotFound},
-		{name: "VCTMissing", input: YAML(nonCanonical), path: []string{"spec", "templates", "volumeClaimTemplates", "[name=absent]", "spec", "resources", "requests", "storage"}, expectedCode: CodePathNotFound},
-		{name: "NotScalar", input: YAML(nonCanonical), path: []string{"spec", "templates"}, expectedCode: CodeNotScalar},
-		{name: "MultipleDocuments", input: YAML("kind: A\n---\nkind: B\n"), path: []string{"kind"}, expectedCode: CodeMultipleDocuments},
-		{name: "Invalid", input: YAML("kind: [ConfigMap\n"), path: []string{"kind"}, expectedCode: CodeYAMLInvalid},
-		{name: "Empty", input: YAML(""), path: []string{"kind"}, expectedCode: CodeYAMLEmpty},
+		{name: "UnknownKey_PathNotFound", input: "spec:\n  a: 1\n", path: []string{"spec", "b"}, expectedCode: CodePathNotFound},
+		{name: "AbsentSequenceElement_PathNotFound", input: "spec:\n  templates:\n    volumeClaimTemplates:\n    - name: data-0\n      spec:\n        resources:\n          requests:\n            storage: 30Gi\n", path: tStoragePath("absent"), expectedCode: CodePathNotFound},
+		{name: "MappingTarget_NotScalar", input: "spec:\n  templates:\n    a: b\n", path: []string{"spec", "templates"}, expectedCode: CodeNotScalar},
+		{name: "TwoContentDocuments_MultipleDocuments", input: "kind: A\n---\nkind: B\n", path: []string{"kind"}, expectedCode: CodeMultipleDocuments},
+		{name: "UnclosedFlowSequence_YAMLInvalid", input: "kind: [ConfigMap\n", path: []string{"kind"}, expectedCode: CodeYAMLInvalid},
+		{name: "Empty_YAMLEmpty", input: "", path: []string{"kind"}, expectedCode: CodeYAMLEmpty},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := Set(tc.input, "x", tc.path...)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := Set(YAML(testCase.input), "x", testCase.path...)
 			require.Error(t, err)
 			assert.Equal(t, errors.TypeInvalidInput, errors.TypeOf(err))
-			assert.Equal(t, tc.expectedCode, errors.CodeOf(err))
+			assert.Equal(t, testCase.expectedCode, errors.CodeOf(err))
 		})
 	}
 }
