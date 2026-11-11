@@ -194,8 +194,8 @@ func TestEditBlockScalar_Errors(t *testing.T) {
 	}
 }
 
-// TestEditBlockScalar_PropagatesEditError confirms an error from the callback
-// is returned verbatim, not wrapped or swallowed.
+// TestEditBlockScalar_PropagatesEditError confirms an error from the
+// callback is returned verbatim, not wrapped or swallowed.
 func TestEditBlockScalar_PropagatesEditError(t *testing.T) {
 	sentinel := errors.New(errors.TypeInvalidInput, CodeUnsafeValue, "boom")
 
@@ -205,10 +205,32 @@ func TestEditBlockScalar_PropagatesEditError(t *testing.T) {
 	require.ErrorIs(t, err, sentinel)
 }
 
-// TestEditBlockScalar_PreservesUntouchedBytes checks that a line the callback
-// does not change keeps its exact source bytes, including a whitespace-only
-// interior line whose indentation differs from the block's — an identity edit
-// must round-trip the document unchanged.
+// TestEditBlockScalar_DoesNotWrapLongLines guards against the failure mode
+// of a JSON round-trip emitter (SigNoz/platform-pod#3363): re-serializing
+// the embedded collector config hard-wrapped a ~90-column OTTL expression
+// at 80 columns, splitting it across two physical lines. Because
+// EditBlockScalar byte-rewrites only the changed scalar and restores every
+// other line from its original bytes, a long untouched line survives
+// verbatim.
+func TestEditBlockScalar_DoesNotWrapLongLines(t *testing.T) {
+	longOTTL := `          - time_unix_nano == 0 and observed_time_unix_nano != 0 and observed_time < Now() - Duration("360h")`
+	input := "apiVersion: v1\nkind: ConfigMap\ndata:\n  otel-collector-config.yaml: |-\n    processors:\n      filter/drop_stale:\n        logs:\n          log_record:\n" + longOTTL + "\n      memory_limiter:\n        limit_mib: 512\n"
+
+	out, err := EditBlockScalar(YAML(input), []string{"data", "otel-collector-config.yaml"}, func(inner YAML) (YAML, error) {
+		return Set(inner, "8192", "processors", "memory_limiter", "limit_mib")
+	})
+	require.NoError(t, err)
+
+	changed := tChangedLines(t, input, string(out))
+	assert.Equal(t, []string{"        limit_mib: 8192"}, changed, "only limit_mib may change")
+	assert.Contains(t, string(out), longOTTL, "the long OTTL expression must survive on one line")
+	assert.NotContains(t, string(out), "Now()\n", "the OTTL expression must not be wrapped after Now()")
+}
+
+// TestEditBlockScalar_PreservesUntouchedBytes checks that a line the
+// callback does not change keeps its exact source bytes, including a
+// whitespace-only interior line whose indentation differs from the block's,
+// so an identity edit round-trips the document unchanged.
 func TestEditBlockScalar_PreservesUntouchedBytes(t *testing.T) {
 	// The block body is indented 4; the interior line has 6 spaces and no
 	// content, and a trailing-comment line carries bytes dedent/reindent could
@@ -232,9 +254,9 @@ func TestEditBlockScalar_PreservesUntouchedBytes(t *testing.T) {
 	assert.Contains(t, string(changed), "    a: 1\n      \n", "the whitespace-only interior line keeps its spaces")
 }
 
-// TestEditBlockScalar_NeverPanics feeds hostile inputs, paths, and callbacks
-// and only requires that EditBlockScalar returns without panicking and that any
-// success is still valid YAML.
+// TestEditBlockScalar_NeverPanics feeds hostile inputs, paths, and
+// callbacks and only requires that EditBlockScalar returns without
+// panicking and that any success is still valid YAML.
 func TestEditBlockScalar_NeverPanics(t *testing.T) {
 	inputs := []string{
 		"",
