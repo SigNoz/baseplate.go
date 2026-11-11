@@ -1,6 +1,7 @@
 package kyaml
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -88,6 +89,19 @@ func TestEditBlockScalar(t *testing.T) {
 			expectedChanged: []string{"          limit_mib: 2048"},
 			expectedKept:    []string{"- name: sidecar\n    config: keep"},
 		},
+		{
+			// The block header is on the sequence-dash line, so the body
+			// boundary must come from the content indentation, not the dash
+			// line's leading spaces, or a less-indented sibling leaks in.
+			name:      "BlockHeaderOnDashLine_SiblingExcluded",
+			input:     "items:\n- config: |-\n    a: b\n  other: keep\n",
+			outerPath: []string{"items", "0", "config"},
+			edit: func(inner YAML) (YAML, error) {
+				return Set(inner, "updated", "a")
+			},
+			expectedChanged: []string{"    a: updated"},
+			expectedKept:    []string{"  other: keep"},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -105,10 +119,11 @@ func TestEditBlockScalar(t *testing.T) {
 	}
 }
 
-// TestEditBlockScalar_ChangesExactlyIntendedLeaves proves the embedded document
-// changes in exactly the targeted leaves and nothing else — in particular the
-// second batch processor that shares the old values is untouched — and that the
-// outer document changes only in the one block-scalar leaf.
+// TestEditBlockScalar_ChangesExactlyIntendedLeaves proves the embedded
+// document changes in exactly the targeted leaves and nothing else — in
+// particular the second batch processor that shares the old values is
+// untouched — and that the outer document changes only in the one
+// block-scalar leaf.
 func TestEditBlockScalar_ChangesExactlyIntendedLeaves(t *testing.T) {
 	input := "apiVersion: v1\nkind: ConfigMap\ndata:\n  config.yaml: |-\n    processors:\n      batch:\n        send_batch_max_size: 25000\n        send_batch_size: 20000\n      batch/meter:\n        send_batch_max_size: 25000\n        send_batch_size: 20000\n      memory_limiter:\n        limit_mib: 512\n  other: untouched\n"
 	outerPath := []string{"data", "config.yaml"}
@@ -163,6 +178,7 @@ func TestEditBlockScalar_Errors(t *testing.T) {
 	}{
 		{name: "PlainScalarTarget_NotBlockScalar", input: "data:\n  config: plain\n", outerPath: []string{"data", "config"}, edit: setLimit, expectedCode: CodeNotBlockScalar},
 		{name: "MappingTarget_NotBlockScalar", input: "data:\n  config:\n    a: b\n", outerPath: []string{"data", "config"}, edit: setLimit, expectedCode: CodeNotBlockScalar},
+		{name: "FoldedScalarTarget_NotBlockScalar", input: "data:\n  config: >-\n    message: hello\n    world\n", outerPath: []string{"data", "config"}, edit: setLimit, expectedCode: CodeNotBlockScalar},
 		{name: "UnknownPath_PathNotFound", input: "data:\n  config: |\n    a: b\n", outerPath: []string{"data", "missing"}, edit: setLimit, expectedCode: CodePathNotFound},
 		{name: "MultipleDocuments", input: "data:\n  config: |\n    a: b\n---\nkind: X\n", outerPath: []string{"data", "config"}, edit: setLimit, expectedCode: CodeMultipleDocuments},
 		{name: "EmptyInput_YAMLEmpty", input: "", outerPath: []string{"data", "config"}, edit: setLimit, expectedCode: CodeYAMLEmpty},
@@ -187,6 +203,33 @@ func TestEditBlockScalar_PropagatesEditError(t *testing.T) {
 		return nil, sentinel
 	})
 	require.ErrorIs(t, err, sentinel)
+}
+
+// TestEditBlockScalar_PreservesUntouchedBytes checks that a line the callback
+// does not change keeps its exact source bytes, including a whitespace-only
+// interior line whose indentation differs from the block's — an identity edit
+// must round-trip the document unchanged.
+func TestEditBlockScalar_PreservesUntouchedBytes(t *testing.T) {
+	// The block body is indented 4; the interior line has 6 spaces and no
+	// content, and a trailing-comment line carries bytes dedent/reindent could
+	// drop.
+	input := "data:\n  config: |\n    a: 1\n      \n    b: 2 # note\ntrailing: keep\n"
+	outerPath := []string{"data", "config"}
+
+	identity, err := EditBlockScalar(YAML(input), outerPath, func(inner YAML) (YAML, error) {
+		return inner, nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, input, string(identity), "an identity edit must round-trip byte for byte")
+
+	changed, err := EditBlockScalar(YAML(input), outerPath, func(inner YAML) (YAML, error) {
+		return Set(inner, "3", "b")
+	})
+	require.NoError(t, err)
+
+	got := tChangedLines(t, input, string(changed))
+	assert.Equal(t, []string{"    b: 3 # note"}, got, "only the targeted line may change; the comment and blank line survive")
+	assert.Contains(t, string(changed), "    a: 1\n      \n", "the whitespace-only interior line keeps its spaces")
 }
 
 // TestEditBlockScalar_NeverPanics feeds hostile inputs, paths, and callbacks
@@ -218,14 +261,16 @@ func TestEditBlockScalar_NeverPanics(t *testing.T) {
 		func(_ YAML) (YAML, error) { return nil, errors.New(errors.TypeInvalidInput, CodeYAMLInvalid, "x") },
 	}
 
-	for _, in := range inputs {
-		for _, p := range paths {
-			for _, e := range edits {
-				out, err := EditBlockScalar(YAML(in), p, e)
-				if err == nil {
-					_, jerr := ToJSON(out)
-					assert.NoError(t, jerr, "input=%q path=%v produced invalid YAML: %q", in, p, string(out))
-				}
+	for i, in := range inputs {
+		for j, p := range paths {
+			for k, e := range edits {
+				t.Run(fmt.Sprintf("input%d/path%d/edit%d", i, j, k), func(t *testing.T) {
+					out, err := EditBlockScalar(YAML(in), p, e)
+					if err == nil {
+						_, jerr := ToJSON(out)
+						assert.NoError(t, jerr, "input=%q path=%v produced invalid YAML: %q", in, p, string(out))
+					}
+				})
 			}
 		}
 	}

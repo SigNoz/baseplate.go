@@ -173,14 +173,16 @@ func TestSet_NeverPanics(t *testing.T) {
 
 	values := []string{"60Gi", "", "x y", "has # hash", "ok", "-dash", "a\nb"}
 
-	for _, in := range inputs {
-		for _, p := range paths {
-			for _, v := range values {
-				out, err := Set(YAML(in), v, p...)
-				if err == nil {
-					_, jerr := ToJSON(out)
-					assert.NoError(t, jerr, "input=%q path=%v value=%q produced invalid YAML: %q", in, p, v, string(out))
-				}
+	for i, in := range inputs {
+		for j, p := range paths {
+			for k, v := range values {
+				t.Run(fmt.Sprintf("input%d/path%d/value%d", i, j, k), func(t *testing.T) {
+					out, err := Set(YAML(in), v, p...)
+					if err == nil {
+						_, jerr := ToJSON(out)
+						assert.NoError(t, jerr, "input=%q path=%v value=%q produced invalid YAML: %q", in, p, v, string(out))
+					}
+				})
 			}
 		}
 	}

@@ -82,5 +82,6 @@
 // when its path does not resolve, [CodeNotScalar] when the path is not an
 // in-place-editable scalar, and [CodeUnsafeValue] when the new value is not
 // a safe plain scalar. [EditBlockScalar] returns [CodeNotBlockScalar] when
-// its path is not a non-empty block scalar, and otherwise the same codes.
+// its path is not a non-empty literal block scalar, and otherwise the same
+// codes.
 package kyaml
