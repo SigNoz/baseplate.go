@@ -17,10 +17,10 @@ import (
 // that field. The edit callback usually composes one or more [Set] calls on
 // the inner document.
 //
-// outerPath is a kustomize kyaml lookup path to the block scalar, a "|" or
-// ">" value; a sequence element is selected with a "[field=value]" segment.
-// The content indentation is read from the source lines, so an explicit
-// block indentation indicator is handled.
+// The outerPath argument is a kustomize kyaml lookup path to the block
+// scalar, a "|" or ">" value; a sequence element is selected with a
+// "[field=value]" segment. The content indentation is read from the source
+// lines, so an explicit block indentation indicator is handled.
 //
 // EditBlockScalar operates on a single-document stream. It returns a
 // TypeInvalidInput error with [CodeYAMLInvalid] or [CodeYAMLEmpty] for
@@ -74,9 +74,9 @@ func editBlock(src YAML, yn *kyyaml.Node, edit func(YAML) (YAML, error)) (YAML, 
 	}
 
 	// The body is the run of following lines indented deeper than the header's
-	// key; it ends at the first non-blank line indented no deeper. bodyIndent
-	// is the least indentation among the body's non-blank lines, the amount to
-	// strip so the inner document starts at column zero.
+	// key; it ends at the first non-blank line indented no deeper. The least
+	// indentation among those lines (bodyIndent) is stripped so the inner
+	// document starts at column zero.
 	keyIndent := leadingSpaces(lines[headerIdx])
 	bodyStart := headerIdx + 1
 	lastContent := -1
