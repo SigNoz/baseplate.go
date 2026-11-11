@@ -50,6 +50,21 @@
 //		"spec", "templates", "volumeClaimTemplates", "[name=data-0]",
 //		"spec", "resources", "requests", "storage")
 //
+// # Editing inside a block scalar
+//
+// A manifest often embeds a whole config as a block scalar, such as a
+// collector config stored under a ConfigMap data key. [EditBlockScalar]
+// reaches into such a value: it dedents the block, hands the inner document
+// to a callback (which usually calls [Set]), and splices the result back,
+// re-indented, so the diff is only what the callback changed:
+//
+//	out, err := kyaml.EditBlockScalar(cm,
+//		[]string{"data", "otel-collector-config.yaml"},
+//		func(inner kyaml.YAML) (kyaml.YAML, error) {
+//			return kyaml.Set(inner, "8192",
+//				"processors", "memory_limiter", "limit_mib")
+//		})
+//
 // # Types
 //
 // [YAML] holds a YAML stream and [encoding/json.RawMessage] holds a JSON
@@ -66,5 +81,6 @@
 // [CodeMultipleDocuments] for a multi-document stream, [CodePathNotFound]
 // when its path does not resolve, [CodeNotScalar] when the path is not an
 // in-place-editable scalar, and [CodeUnsafeValue] when the new value is not
-// a safe plain scalar.
+// a safe plain scalar. [EditBlockScalar] returns [CodeNotBlockScalar] when
+// its path is not a non-empty block scalar, and otherwise the same codes.
 package kyaml
