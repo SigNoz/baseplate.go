@@ -7,6 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// tTree and tList are types that hold themselves.
+type tTree map[string]tTree
+
+type tList []tList
+
 func TestCheckVars(t *testing.T) {
 	testCases := []struct {
 		name            string
@@ -38,6 +43,16 @@ func TestCheckVars(t *testing.T) {
 				TLS struct {
 					Duration time.Duration `expr:"duration"`
 				} `expr:"tls"`
+			}{},
+		},
+		{
+			name: "RecursiveMap_Accepted",
+			vars: map[string]any{"tree": tTree{}},
+		},
+		{
+			name: "RecursiveSlice_Accepted",
+			vars: struct {
+				Children tList `expr:"children"`
 			}{},
 		},
 		{

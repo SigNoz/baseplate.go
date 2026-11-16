@@ -68,7 +68,7 @@ func checkFields(t reflect.Type, path string, seen map[reflect.Type]bool) error 
 			}
 		}
 	}) {
-		fieldPath := join(path, name)
+		fieldPath := joinPath(path, name)
 		if err := checkName(name, fieldPath); err != nil {
 			return err
 		}
@@ -82,9 +82,16 @@ func checkFields(t reflect.Type, path string, seen map[reflect.Type]bool) error 
 }
 
 // checkType checks the struct that type t is or holds, as the items of a
-// slice or array, the values of a map or the target of a pointer.
+// slice or array, the values of a map or the target of a pointer. A type
+// already in seen isn't checked again, so a type that holds itself, such
+// as T map[string]T, ends the walk.
 func checkType(t reflect.Type, path string, seen map[reflect.Type]bool) error {
 	for t != nil && slices.Contains([]reflect.Kind{reflect.Slice, reflect.Array, reflect.Map, reflect.Pointer}, t.Kind()) {
+		if seen[t] {
+			return nil
+		}
+
+		seen[t] = true
 		t = t.Elem()
 	}
 
@@ -102,7 +109,7 @@ func checkType(t reflect.Type, path string, seen map[reflect.Type]bool) error {
 func checkName(name, path string) error {
 	tokens, err := lexer.Lex(file.NewSource(name))
 	if err != nil || len(tokens) != 2 || tokens[0].Kind != lexer.Identifier || tokens[0].Value != name || aliases[name] != "" {
-		return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "%s has the name %q, expected one identifier other than AND, OR, NOT, IN, CONTAINS, REGEXP or regexp", subject(path), name)
+		return errors.Newf(errors.TypeInvalidInput, CodeVarsInvalid, "%s has the name %q, expected one identifier other than AND, OR, NOT, IN, CONTAINS, REGEXP or regexp", pathSubject(path), name)
 	}
 
 	if !strings.Contains(path, ".") && (slices.Contains(builtin.Names, name) || slices.Contains(reserved, name)) {
@@ -112,7 +119,7 @@ func checkName(name, path string) error {
 	return nil
 }
 
-func join(path, name string) string {
+func joinPath(path, name string) string {
 	if path == "" {
 		return name
 	}
@@ -120,9 +127,9 @@ func join(path, name string) string {
 	return path + "." + name
 }
 
-// subject names what is at path in an error: a var at the top level, a
+// pathSubject names what is at path in an error: a var at the top level, a
 // field in a struct.
-func subject(path string) string {
+func pathSubject(path string) string {
 	if strings.Contains(path, ".") {
 		return "field " + path
 	}

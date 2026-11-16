@@ -75,7 +75,7 @@ func nameError(tree *parser.Tree, err error, vars any, s *source) error {
 
 	message := checked.Message
 	if len(candidates) > 0 {
-		candidates[0] = join(path, candidates[0])
+		candidates[0] = joinPath(path, candidates[0])
 		message += "; did you mean " + candidates[0] + "?"
 	}
 
