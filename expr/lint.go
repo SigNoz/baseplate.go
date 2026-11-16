@@ -9,7 +9,7 @@ import (
 	"github.com/expr-lang/expr/parser"
 )
 
-// lint checks tree against the limits of env that upstream expr doesn't
+// lint checks tree against the limits of env that expr-lang/expr doesn't
 // check itself, reporting errors on s.
 func lint(tree *parser.Tree, env Env, s *source) error {
 	if env.nesting > 0 {
@@ -68,7 +68,7 @@ func lintNesting(tree *parser.Tree, limit uint, s *source) error {
 }
 
 // lintPattern requires the pattern of a matches operator to be a string
-// literal within the length limit. Upstream expr checks that a literal
+// literal within the length limit. Expr-lang checks that a literal
 // pattern is a valid regular expression.
 func lintPattern(pattern ast.Node, limit uint, s *source) error {
 	literal, ok := pattern.(*ast.StringNode)
