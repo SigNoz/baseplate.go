@@ -36,7 +36,7 @@ type Program struct {
 	names    []string // TypedDynamic: the top-level names the expression references, sorted.
 	allNames bool     // TypedDynamic: $env or a caller's patch may read any name, so every name counts.
 	shapes   sync.Map
-	count    atomic.Int64
+	count    atomic.Int64 // TypedDynamic: the slots taken in shapes, at most maxShapes.
 }
 
 // Compile compiles an expression whose result is a bool.
@@ -124,10 +124,17 @@ func (p *Program) programFor(vars map[string]any) (*vm.Program, error) {
 		return nil, err
 	}
 
-	if p.count.Load() < maxShapes {
-		if _, loaded := p.shapes.LoadOrStore(key, program); !loaded {
-			p.count.Add(1)
-		}
+	// A slot is taken before the program is stored and given back when the
+	// cache is full or another run stored the shape first, so concurrent
+	// runs never cache more than maxShapes programs.
+	if p.count.Add(1) > maxShapes {
+		p.count.Add(-1)
+
+		return program, nil
+	}
+
+	if _, loaded := p.shapes.LoadOrStore(key, program); loaded {
+		p.count.Add(-1)
 	}
 
 	return program, nil
