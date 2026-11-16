@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1602,6 +1603,174 @@ func TestProgram_Source(t *testing.T) {
 			program, err := Compile(testCase.src, testCase.env)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.src, program.Source())
+		})
+	}
+}
+
+func TestProgram_References(t *testing.T) {
+	testCases := []struct {
+		name     string
+		src      string
+		env      Env
+		expected []string
+	}{
+		{
+			name:     "NestedFields_LongestPath",
+			src:      `tls.certificate.remaining > duration("336h") AND tls.used`,
+			env:      tHTTPEnv(),
+			expected: []string{"tls.certificate.remaining", "tls.used"},
+		},
+		{
+			name:     "BracketKey_Quoted",
+			src:      `headers["content-type"] startsWith "application/json"`,
+			env:      tHTTPEnv(),
+			expected: []string{`headers["content-type"]`},
+		},
+		{
+			name:     "IndexedList_StopsAtIndex",
+			src:      `json.items[0].ok`,
+			env:      tHTTPEnv(),
+			expected: []string{"json.items"},
+		},
+		{
+			name:     "FunctionsAndLets_LeftOut",
+			src:      `let limit = 300; len(body) < limit`,
+			env:      tHTTPEnv(),
+			expected: []string{"body"},
+		},
+		{
+			name:     "LetShadowsOuterName_OuterKept",
+			src:      `retries > 0 AND (let retries = 1; retries > 0)`,
+			env:      Untyped(),
+			expected: []string{"retries"},
+		},
+		{
+			name:     "LetInitializer_ReadsOuterName",
+			src:      `let attempts = attempts + 1; attempts > 3`,
+			env:      Untyped(),
+			expected: []string{"attempts"},
+		},
+		{
+			name:     "NestedLets_InnerBound",
+			src:      `let a = 1; let b = a + redirects; b > 2`,
+			env:      tHTTPEnv(),
+			expected: []string{"redirects"},
+		},
+		{
+			name: "Literal_NoReferences",
+			src:  `1 < 2`,
+			env:  tHTTPEnv(),
+		},
+		{
+			name:     "EnvMember_VariablePath",
+			src:      `$env.status_code = 200 AND $env.tls.version = "1.3"`,
+			env:      tHTTPEnv(),
+			expected: []string{"status_code", "tls.version"},
+		},
+		{
+			name:     "EnvBracketKey_StaysOnEnv",
+			src:      `$env["k8s.pod"] = "api"`,
+			env:      Untyped(),
+			expected: []string{`$env["k8s.pod"]`},
+		},
+		{
+			name:     "EnvLiteralOrBuiltinKey_StaysOnEnv",
+			src:      `$env["true"] = "yes" AND $env["len"] = 1 AND $env["in"] = 2`,
+			env:      Untyped(),
+			expected: []string{`$env["in"]`, `$env["len"]`, `$env["true"]`},
+		},
+		{
+			name: "BareEnv_NoReferences",
+			src:  `len($env) > 0`,
+			env:  Untyped(),
+		},
+		{
+			name:     "Untyped_Attributes",
+			src:      `attributes["k8s.pod.name"] = "api" OR severity_text = "ERROR"`,
+			env:      Untyped(),
+			expected: []string{`attributes["k8s.pod.name"]`, "severity_text"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			program, err := Compile(testCase.src, testCase.env)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expected, program.References())
+		})
+	}
+}
+
+// The values are those a test run shows next to a failed assertion
+// (Assertions TRD §6).
+func TestProgram_ReferenceValues(t *testing.T) {
+	vars := tHTTP{
+		StatusCode: 503,
+		Headers: map[string]string{
+			"content-type": "text/html",
+		},
+		JSON: map[string]any{
+			"status": "degraded",
+			"items":  []any{1, 2},
+		},
+		ResponseTime: 1500 * time.Millisecond,
+		TLS: tTLS{
+			Certificate: tCertificate{
+				SANs: []string{"a.example.com"},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name     string
+		src      string
+		expected map[string]string
+	}{
+		{
+			name: "Scalars_Formatted",
+			src:  `status_code = 200 AND response_time < duration("1s")`,
+			expected: map[string]string{
+				"status_code":   "503",
+				"response_time": "1.5s",
+			},
+		},
+		{
+			name: "JSONField_AsText",
+			src:  `json.status = "ok"`,
+			expected: map[string]string{
+				"json.status": "degraded",
+			},
+		},
+		{
+			name: "MissingField_Nil",
+			src:  `json.missing = "x" OR headers["server"] = "nginx"`,
+			expected: map[string]string{
+				"json.missing":   "nil",
+				"headers.server": "nil",
+			},
+		},
+		{
+			name: "EnvMember_Value",
+			src:  `$env.status_code = 200`,
+			expected: map[string]string{
+				"status_code": "503",
+			},
+		},
+		{
+			name: "List_JSON",
+			src:  `len(json.items) > 3 AND len(tls.certificate.sans) = 0`,
+			expected: map[string]string{
+				"json.items":           `[1,2]`,
+				"tls.certificate.sans": `["a.example.com"]`,
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			program, err := Compile(testCase.src, tHTTPEnv())
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expected, program.ReferenceValues(vars))
 		})
 	}
 }

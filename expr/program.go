@@ -31,7 +31,13 @@ type Program struct {
 	env     Env
 	boolean bool
 
-	program *vm.Program // Untyped.
+	program *vm.Program // Untyped and TypedStatic.
+
+	references []string
+	values     struct {
+		once     sync.Once
+		programs map[string]*Program
+	}
 
 	names    []string // TypedDynamic: the top-level names the expression references, sorted.
 	allNames bool     // TypedDynamic: $env or a caller's patch may read any name, so every name counts.
@@ -59,6 +65,44 @@ func CompileValue(src string, env Env) (*Program, error) {
 // Source returns the expression as it was written.
 func (p *Program) Source() string {
 	return p.source.text
+}
+
+// References returns the variables the expression reads, sorted, as paths
+// such as tls.version or headers["content-type"]. A key that is a plain
+// name is written with a dot, so headers["server"] gives headers.server. A
+// path stops where the expression stops naming members by string, so
+// json.items[0].ok gives json.items. A read through $env gives the
+// variable's path, so $env.status_code gives status_code.
+func (p *Program) References() []string {
+	return slices.Clone(p.references)
+}
+
+// ReferenceValues runs each of [Program.References] with vars and returns
+// its value as text, at most 256 characters, to show what an expression
+// saw. Strings are as they are, nil is "nil", lists, maps and structs are
+// JSON, or their type when JSON can't encode them, as with a map that
+// holds itself, and other values are formatted as Go formats them. A
+// reference that fails to compile or run is left out.
+func (p *Program) ReferenceValues(vars any) map[string]string {
+	p.values.once.Do(func() {
+		p.values.programs = map[string]*Program{}
+
+		for _, reference := range p.references {
+			if program, err := CompileValue(reference, p.env); err == nil {
+				p.values.programs[reference] = program
+			}
+		}
+	})
+
+	values := map[string]string{}
+
+	for reference, program := range p.values.programs {
+		if value, err := program.Run(vars); err == nil {
+			values[reference] = stringify(value)
+		}
+	}
+
+	return values
 }
 
 // Bool runs the program with vars and returns its bool result. A [TypedDynamic]
@@ -246,6 +290,12 @@ func (p *Program) build(vars map[string]any) (*vm.Program, error) {
 			return nil, errors.New(errors.TypeInvalidInput, CodeResultNotBool, err.Error())
 		}
 
+		if p.env.static {
+			if named := nameError(tree, err, p.source); named != nil {
+				return nil, named
+			}
+		}
+
 		return nil, p.source.positionError(err, CodeTypeInvalid)
 	}
 
@@ -311,6 +361,8 @@ func compile(text string, env Env, boolean bool) (*Program, error) {
 	if err := lint(tree, env, s); err != nil {
 		return nil, err
 	}
+
+	p.references = references(tree)
 
 	if !env.dynamic {
 		p.program, err = p.build(nil)
