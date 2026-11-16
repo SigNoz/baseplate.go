@@ -1,6 +1,7 @@
 package expr
 
 import (
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -46,7 +47,7 @@ func nameError(tree *parser.Tree, err error, vars any, s *source) error {
 			candidates = builtin.Names
 		} else {
 			env := conf.EnvWithCache(cache, vars)
-			candidates = keys(env.All(cache))
+			candidates = slices.Collect(maps.Keys(env.All(cache)))
 		}
 
 		candidates = suggestions(identifier.Value, candidates)
@@ -68,7 +69,7 @@ func nameError(tree *parser.Tree, err error, vars any, s *source) error {
 		}
 
 		path, _ = referencePath(member.Node, nil)
-		candidates = suggestions(key.Value, keys(nature.StructFields(cache, parent)))
+		candidates = suggestions(key.Value, slices.Collect(maps.Keys(nature.StructFields(cache, parent))))
 	default:
 		return nil
 	}
@@ -108,15 +109,6 @@ func memberAt(tree *parser.Tree, location file.Location) (*ast.MemberNode, bool)
 	}
 
 	return nil, false
-}
-
-func keys[V any](m map[string]V) []string {
-	names := make([]string, 0, len(m))
-	for name := range m {
-		names = append(names, name)
-	}
-
-	return names
 }
 
 // suggestions returns the candidate closest to name, within two edits, or
