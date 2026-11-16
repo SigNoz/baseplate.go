@@ -1,6 +1,7 @@
 package expr
 
 import (
+	"maps"
 	"strings"
 	"sync"
 	"testing"
@@ -1510,6 +1511,71 @@ func TestProgram_ConcurrentShapes(t *testing.T) {
 			}
 
 			wg.Wait()
+		})
+	}
+}
+
+// Runs of many shapes at once cache at most maxShapes programs.
+func TestProgram_ShapeCache(t *testing.T) {
+	kinds := []any{nil, 1, "x", true, 1.5, []any{1}, map[string]any{"k": "v"}}
+
+	testCases := []struct {
+		name          string
+		names         []string
+		expectedCount int64
+	}{
+		{
+			name:          "FewShapes_AllCached",
+			names:         []string{"a"},
+			expectedCount: 8,
+		},
+		{
+			name:          "ManyShapes_CappedAtMax",
+			names:         []string{"a", "b", "c"},
+			expectedCount: maxShapes,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			program, err := Compile(`a != nil OR b != nil OR c != nil`, TypedDynamic())
+			require.NoError(t, err)
+
+			varSets := []map[string]any{{}}
+			for _, name := range testCase.names {
+				var next []map[string]any
+				for _, vars := range varSets {
+					next = append(next, vars)
+
+					for _, kind := range kinds {
+						with := map[string]any{name: kind}
+						maps.Copy(with, vars)
+						next = append(next, with)
+					}
+				}
+
+				varSets = next
+			}
+
+			var wg sync.WaitGroup
+			for _, vars := range varSets {
+				wg.Go(func() {
+					_, err := program.Bool(vars)
+					assert.NoError(t, err)
+				})
+			}
+
+			wg.Wait()
+
+			cached := int64(0)
+			program.shapes.Range(func(_, _ any) bool {
+				cached++
+
+				return true
+			})
+
+			assert.Equal(t, testCase.expectedCount, cached)
+			assert.Equal(t, testCase.expectedCount, program.count.Load())
 		})
 	}
 }
