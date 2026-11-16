@@ -41,7 +41,7 @@ func checkVars(vars any) error {
 			}
 
 			if element := value.MapIndex(key).Elem(); element.IsValid() {
-				if err := checkHeld(element.Type(), name, map[reflect.Type]bool{}); err != nil {
+				if err := checkType(element.Type(), name, map[reflect.Type]bool{}); err != nil {
 					return err
 				}
 			}
@@ -76,7 +76,7 @@ func checkFields(t reflect.Type, path string, seen map[reflect.Type]bool) error 
 			return err
 		}
 
-		if err := checkHeld(fields[name].Type, fieldPath, seen); err != nil {
+		if err := checkType(fields[name].Type, fieldPath, seen); err != nil {
 			return err
 		}
 	}
@@ -84,9 +84,9 @@ func checkFields(t reflect.Type, path string, seen map[reflect.Type]bool) error 
 	return nil
 }
 
-// checkHeld checks the struct that t is or holds, as the items of a slice
-// or the values of a map.
-func checkHeld(t reflect.Type, path string, seen map[reflect.Type]bool) error {
+// checkType checks the struct that type t is or holds, as the items of a
+// slice or array, the values of a map or the target of a pointer.
+func checkType(t reflect.Type, path string, seen map[reflect.Type]bool) error {
 	for t != nil && slices.Contains([]reflect.Kind{reflect.Slice, reflect.Array, reflect.Map, reflect.Pointer}, t.Kind()) {
 		t = t.Elem()
 	}
