@@ -83,29 +83,6 @@ func newSource(text string) (*source, error) {
 	return s, nil
 }
 
-// upstreamSpelling returns the upstream spelling of tokens[i], or "" when it
-// stays as written.
-func upstreamSpelling(tokens []lexer.Token, i int) string {
-	token := tokens[i]
-
-	switch {
-	case token.Kind == lexer.Identifier:
-		if i > 0 && tokens[i-1].Kind == lexer.Operator && (tokens[i-1].Value == "." || tokens[i-1].Value == "?.") {
-			return ""
-		}
-
-		return aliases[token.Value]
-	case token.Kind == lexer.Operator && token.Value == "=":
-		if i > 1 && tokens[i-1].Kind == lexer.Identifier && tokens[i-2].Kind == lexer.Operator && tokens[i-2].Value == "let" {
-			return ""
-		}
-
-		return "=="
-	}
-
-	return ""
-}
-
 // offset maps an offset in the upstream text to the source. An offset inside
 // a respelled token maps to the same character of the source token, or to
 // its last one when the source token is shorter; an end offset maps at most
@@ -178,4 +155,27 @@ func (s *source) respell(message string, from, to int) string {
 	}
 
 	return message
+}
+
+// upstreamSpelling returns the upstream spelling of tokens[i], or "" when it
+// stays as written.
+func upstreamSpelling(tokens []lexer.Token, i int) string {
+	token := tokens[i]
+
+	switch {
+	case token.Kind == lexer.Identifier:
+		if i > 0 && tokens[i-1].Kind == lexer.Operator && (tokens[i-1].Value == "." || tokens[i-1].Value == "?.") {
+			return ""
+		}
+
+		return aliases[token.Value]
+	case token.Kind == lexer.Operator && token.Value == "=":
+		if i > 1 && tokens[i-1].Kind == lexer.Identifier && tokens[i-2].Kind == lexer.Operator && tokens[i-2].Value == "let" {
+			return ""
+		}
+
+		return "=="
+	}
+
+	return ""
 }
