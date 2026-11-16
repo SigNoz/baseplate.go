@@ -12,9 +12,9 @@ import (
 // The cases are the SigNoz/expr fork's own test suite (v1.17.7-beta), each
 // compiled with expr.Env(vars) and run, plus cases for what the suite
 // doesn't cover. The expected results and errors were generated once by
-// running every case on the fork. Through the shim, upstream expr gives the
+// running every case on the fork. Through source, upstream expr gives the
 // same results and the same errors, at the same positions in the source.
-func TestShim(t *testing.T) {
+func TestSource(t *testing.T) {
 	testCases := []struct {
 		name          string
 		expression    string
@@ -1207,7 +1207,7 @@ func TestShim(t *testing.T) {
 	}
 }
 
-func TestShim_Spelling(t *testing.T) {
+func TestSource_Spelling(t *testing.T) {
 	testCases := []struct {
 		name             string
 		source           string
