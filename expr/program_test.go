@@ -1639,6 +1639,24 @@ func TestProgram_References(t *testing.T) {
 			expected: []string{"body"},
 		},
 		{
+			name:     "LetShadowsOuterName_OuterKept",
+			src:      `retries > 0 AND (let retries = 1; retries > 0)`,
+			env:      Untyped(),
+			expected: []string{"retries"},
+		},
+		{
+			name:     "LetInitializer_ReadsOuterName",
+			src:      `let attempts = attempts + 1; attempts > 3`,
+			env:      Untyped(),
+			expected: []string{"attempts"},
+		},
+		{
+			name:     "NestedLets_InnerBound",
+			src:      `let a = 1; let b = a + redirects; b > 2`,
+			env:      tHTTPEnv(),
+			expected: []string{"redirects"},
+		},
+		{
 			name: "Literal_NoReferences",
 			src:  `1 < 2`,
 			env:  tHTTPEnv(),

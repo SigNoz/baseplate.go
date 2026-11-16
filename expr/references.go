@@ -58,10 +58,12 @@ func stringify(value any) string {
 }
 
 // references returns the paths of the variables tree reads: names, and
-// chains of string-keyed members on them, longest first in each chain.
+// chains of string-keyed members on them, longest first in each chain. A
+// name that a let binds is a variable only outside the let's body, so the
+// x of let x = x + 1 is read and the x after the semicolon isn't.
 func references(tree *parser.Tree) []string {
 	ends := map[ast.Node]bool{}
-	lets := map[string]bool{}
+	bound := map[*ast.IdentifierNode]bool{}
 
 	visit(&tree.Node, func(node *ast.Node) {
 		switch n := (*node).(type) {
@@ -72,7 +74,11 @@ func references(tree *parser.Tree) []string {
 		case *ast.CallNode:
 			ends[n.Callee] = true
 		case *ast.VariableDeclaratorNode:
-			lets[n.Name] = true
+			for _, identifier := range nodesOf[*ast.IdentifierNode](&n.Expr) {
+				if identifier.Value == n.Name {
+					bound[identifier] = true
+				}
+			}
 		}
 	})
 
@@ -83,7 +89,7 @@ func references(tree *parser.Tree) []string {
 			return
 		}
 
-		if path, ok := referencePath(*node, lets); ok {
+		if path, ok := referencePath(*node, bound); ok {
 			found = append(found, path)
 		}
 	})
@@ -94,13 +100,13 @@ func references(tree *parser.Tree) []string {
 }
 
 // referencePath returns node as a reference when it is a name, other than
-// one bound by let, or a chain of string-keyed members on one. A member of
+// one in bound, or a chain of string-keyed members on one. A member of
 // $env is the variable it names: $env.status_code is status_code, and a key
 // that isn't a plain name stays on $env, as in $env["k8s.pod"].
-func referencePath(node ast.Node, lets map[string]bool) (string, bool) {
+func referencePath(node ast.Node, bound map[*ast.IdentifierNode]bool) (string, bool) {
 	switch n := node.(type) {
 	case *ast.IdentifierNode:
-		if lets[n.Value] || n.Value == "$env" {
+		if bound[n] || n.Value == "$env" {
 			return "", false
 		}
 
@@ -121,7 +127,7 @@ func referencePath(node ast.Node, lets map[string]bool) (string, bool) {
 			return "$env[" + strconv.Quote(key.Value) + "]", true
 		}
 
-		parent, ok := referencePath(n.Node, lets)
+		parent, ok := referencePath(n.Node, bound)
 		if !ok {
 			return "", false
 		}
