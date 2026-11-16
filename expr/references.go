@@ -33,13 +33,20 @@ func stringify(value any) string {
 	case string:
 		text = v
 	default:
-		text = fmt.Sprint(v)
+		t := reflect.TypeOf(v)
 
-		kind := reflect.TypeOf(v).Kind()
-		if kind == reflect.Map || kind == reflect.Slice || (kind == reflect.Struct && reflect.TypeOf(v) != timeType) {
-			if encoded, err := json.Marshal(v); err == nil {
+		switch {
+		case slices.Contains([]reflect.Kind{reflect.Map, reflect.Slice, reflect.Array}, t.Kind()) || (t.Kind() == reflect.Struct && t != timeType):
+			// Go's formatting follows a value that holds itself until the
+			// stack overflows, so a value JSON rejects shows its type.
+			encoded, err := json.Marshal(v)
+			if err != nil {
+				text = t.String()
+			} else {
 				text = string(encoded)
 			}
+		default:
+			text = fmt.Sprint(v)
 		}
 	}
 

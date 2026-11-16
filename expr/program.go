@@ -80,8 +80,9 @@ func (p *Program) References() []string {
 // ReferenceValues runs each of [Program.References] with vars and returns
 // its value as text, at most 256 characters, to show what an expression
 // saw. Strings are as they are, nil is "nil", lists, maps and structs are
-// JSON, and other values are formatted as Go formats them. A reference
-// that fails to compile or run is left out.
+// JSON, or their type when JSON can't encode them, as with a map that
+// holds itself, and other values are formatted as Go formats them. A
+// reference that fails to compile or run is left out.
 func (p *Program) ReferenceValues(vars any) map[string]string {
 	p.values.once.Do(func() {
 		p.values.programs = map[string]*Program{}
