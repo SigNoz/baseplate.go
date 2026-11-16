@@ -291,7 +291,7 @@ func (p *Program) build(vars map[string]any) (*vm.Program, error) {
 		}
 
 		if p.env.static {
-			if named := nameError(tree, err, p.env.vars, p.source); named != nil {
+			if named := nameError(tree, err, p.source); named != nil {
 				return nil, named
 			}
 		}

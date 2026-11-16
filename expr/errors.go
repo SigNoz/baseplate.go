@@ -20,14 +20,13 @@ var (
 	CodeVarsInvalid     = errors.MustNewCode("vars_invalid")
 	CodeNameUnknown     = errors.MustNewCode("name_unknown")
 	CodeFunctionUnknown = errors.MustNewCode("function_unknown")
-	CodeVarTypeInvalid  = errors.MustNewCode("var_type_invalid")
 )
 
 // PositionError is where in an expression's source an error is. It is the
 // cause of every error with a position that [Compile], [CompileValue],
-// [Program.Bool] and [Program.Run] return; the type, code, message and
-// suggestions are on the [github.com/SigNoz/baseplate.go/errors] error that
-// wraps it. Get it with [github.com/SigNoz/baseplate.go/errors.AsType].
+// [Program.Bool] and [Program.Run] return; the type, code and message are
+// on the [github.com/SigNoz/baseplate.go/errors] error that wraps it. Get
+// it with [github.com/SigNoz/baseplate.go/errors.AsType].
 type PositionError struct {
 	From    int `json:"from"`   // Offset of the first code point, from 0.
 	To      int `json:"to"`     // Offset after the last code point.

@@ -109,8 +109,8 @@ func (s *source) offset(at int, end bool) int {
 }
 
 // positionError turns an error from expr-lang, whose positions are on the
-// expr-lang text, into an error on the source with code and suggestions.
-func (s *source) positionError(err error, code errors.Code, suggestions ...string) error {
+// expr-lang text, into an error on the source with code.
+func (s *source) positionError(err error, code errors.Code) error {
 	exprlangErr, ok := errors.AsType[*file.Error](err)
 	if !ok {
 		return errors.New(errors.TypeInvalidInput, code, err.Error())
@@ -131,12 +131,7 @@ func (s *source) positionError(err error, code errors.Code, suggestions ...strin
 		snippet: bound.Snippet,
 	}
 
-	wrapped := errors.Wrap(position, errors.TypeInvalidInput, code, s.respell(exprlangErr.Message, exprlangErr.From, exprlangErr.To))
-	if len(suggestions) > 0 {
-		return wrapped.WithSuggestions(suggestions...)
-	}
-
-	return wrapped
+	return errors.Wrap(position, errors.TypeInvalidInput, code, s.respell(exprlangErr.Message, exprlangErr.From, exprlangErr.To))
 }
 
 // respell puts back the source spelling of a respelled token that an error

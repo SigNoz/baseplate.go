@@ -178,6 +178,6 @@ func ExampleTypedStatic() {
 	})
 	_, _ = fmt.Println(passed, err)
 	// Output:
-	// name_unknown type expr_test.tls has no field vrsion; did you mean tls.version?
+	// name_unknown type expr_test.tls has no field vrsion
 	// true <nil>
 }
