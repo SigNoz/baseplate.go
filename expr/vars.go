@@ -85,9 +85,16 @@ func checkFields(t reflect.Type, path string, seen map[reflect.Type]bool) error 
 }
 
 // checkType checks the struct that type t is or holds, as the items of a
-// slice or array, the values of a map or the target of a pointer.
+// slice or array, the values of a map or the target of a pointer. A type
+// already in seen isn't checked again, so a type that holds itself, such
+// as T map[string]T, ends the walk.
 func checkType(t reflect.Type, path string, seen map[reflect.Type]bool) error {
 	for t != nil && slices.Contains([]reflect.Kind{reflect.Slice, reflect.Array, reflect.Map, reflect.Pointer}, t.Kind()) {
+		if seen[t] {
+			return nil
+		}
+
+		seen[t] = true
 		t = t.Elem()
 	}
 
