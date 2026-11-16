@@ -56,54 +56,6 @@ func CompileValue(src string, env Env) (*Program, error) {
 	return compile(src, env, false)
 }
 
-func compile(text string, env Env, boolean bool) (*Program, error) {
-	s, err := newSource(text)
-	if err != nil {
-		return nil, err
-	}
-
-	p := &Program{
-		source:  s,
-		env:     env,
-		boolean: boolean,
-	}
-
-	if !env.typed {
-		p.program, err = p.build(nil)
-		if err != nil {
-			return nil, err
-		}
-
-		return p, nil
-	}
-
-	tree, err := parser.Parse(s.upstream)
-	if err != nil {
-		return nil, p.parseError(err)
-	}
-
-	p.allNames = len(env.patches) > 0
-
-	visit(&tree.Node, func(node *ast.Node) {
-		switch n := (*node).(type) {
-		case *ast.IdentifierNode:
-			p.allNames = p.allNames || n.Value == "$env"
-			p.names = append(p.names, n.Value)
-		case *ast.BuiltinNode:
-			p.names = append(p.names, n.Name)
-		}
-	})
-
-	slices.Sort(p.names)
-	p.names = slices.Compact(p.names)
-
-	if _, err := p.programFor(map[string]any{}); err != nil {
-		return nil, err
-	}
-
-	return p, nil
-}
-
 // Source returns the expression as it was written.
 func (p *Program) Source() string {
 	return p.source.text
@@ -297,4 +249,52 @@ func (p *Program) parseError(err error) error {
 	}
 
 	return p.source.positionError(err, CodeSyntaxInvalid)
+}
+
+func compile(text string, env Env, boolean bool) (*Program, error) {
+	s, err := newSource(text)
+	if err != nil {
+		return nil, err
+	}
+
+	p := &Program{
+		source:  s,
+		env:     env,
+		boolean: boolean,
+	}
+
+	if !env.typed {
+		p.program, err = p.build(nil)
+		if err != nil {
+			return nil, err
+		}
+
+		return p, nil
+	}
+
+	tree, err := parser.Parse(s.upstream)
+	if err != nil {
+		return nil, p.parseError(err)
+	}
+
+	p.allNames = len(env.patches) > 0
+
+	visit(&tree.Node, func(node *ast.Node) {
+		switch n := (*node).(type) {
+		case *ast.IdentifierNode:
+			p.allNames = p.allNames || n.Value == "$env"
+			p.names = append(p.names, n.Value)
+		case *ast.BuiltinNode:
+			p.names = append(p.names, n.Name)
+		}
+	})
+
+	slices.Sort(p.names)
+	p.names = slices.Compact(p.names)
+
+	if _, err := p.programFor(map[string]any{}); err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }
