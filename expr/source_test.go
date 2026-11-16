@@ -3,7 +3,7 @@ package expr
 import (
 	"testing"
 
-	upstream "github.com/expr-lang/expr"
+	exprlang "github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,7 +12,7 @@ import (
 // The cases are the SigNoz/expr fork's own test suite (v1.17.7-beta), each
 // compiled with expr.Env(vars) and run, plus cases for what the suite
 // doesn't cover. The expected results and errors were generated once by
-// running every case on the fork. Through source, upstream expr gives the
+// running every case on the fork. Through source, expr-lang/expr gives the
 // same results and the same errors, at the same positions in the source.
 func TestSource(t *testing.T) {
 	testCases := []struct {
@@ -1181,7 +1181,7 @@ func TestSource(t *testing.T) {
 			if err == nil {
 				var program *vm.Program
 
-				program, err = upstream.Compile(s.upstream, upstream.Env(testCase.vars))
+				program, err = exprlang.Compile(s.exprlang, exprlang.Env(testCase.vars))
 				if err != nil {
 					err = s.positionError(err, CodeTypeInvalid)
 				}
@@ -1189,7 +1189,7 @@ func TestSource(t *testing.T) {
 				if err == nil {
 					var got any
 
-					got, err = upstream.Run(program, testCase.vars)
+					got, err = exprlang.Run(program, testCase.vars)
 					if err == nil {
 						require.Nil(t, testCase.expectedError)
 						assert.Equal(t, testCase.expected, got)
@@ -1211,42 +1211,42 @@ func TestSource_Spelling(t *testing.T) {
 	testCases := []struct {
 		name             string
 		source           string
-		expectedUpstream string
+		expectedExprlang string
 	}{
 		{
 			name:             "Aliases_Respelled",
 			source:           `a = 1 AND b IN [1] OR NOT c CONTAINS "x"`,
-			expectedUpstream: `a == 1 and b in [1] or not c contains "x"`,
+			expectedExprlang: `a == 1 and b in [1] or not c contains "x"`,
 		},
 		{
 			name:             "Regexp_BothCases",
 			source:           `a REGEXP "x" OR a regexp "y"`,
-			expectedUpstream: `a matches "x" or a matches "y"`,
+			expectedExprlang: `a matches "x" or a matches "y"`,
 		},
 		{
 			name:             "QuotedText_Untouched",
 			source:           `a = "b AND c = d"`,
-			expectedUpstream: `a == "b AND c = d"`,
+			expectedExprlang: `a == "b AND c = d"`,
 		},
 		{
 			name:             "MemberNames_Untouched",
 			source:           `a.AND = 1 AND a?.regexp = 2`,
-			expectedUpstream: `a.AND == 1 and a?.regexp == 2`,
+			expectedExprlang: `a.AND == 1 and a?.regexp == 2`,
 		},
 		{
 			name:             "LetBinder_Untouched",
 			source:           `let x = 1; x = 1`,
-			expectedUpstream: `let x = 1; x == 1`,
+			expectedExprlang: `let x = 1; x == 1`,
 		},
 		{
 			name:             "OtherOperators_Untouched",
 			source:           `a <= 1 && b != 2 || c >= 3`,
-			expectedUpstream: `a <= 1 && b != 2 || c >= 3`,
+			expectedExprlang: `a <= 1 && b != 2 || c >= 3`,
 		},
 		{
 			name:             "MixedCase_Untouched",
 			source:           `a And b`,
-			expectedUpstream: `a And b`,
+			expectedExprlang: `a And b`,
 		},
 	}
 
@@ -1254,7 +1254,7 @@ func TestSource_Spelling(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			s, err := newSource(testCase.source)
 			require.NoError(t, err)
-			assert.Equal(t, testCase.expectedUpstream, s.upstream)
+			assert.Equal(t, testCase.expectedExprlang, s.exprlang)
 		})
 	}
 }
