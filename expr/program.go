@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	upstream "github.com/expr-lang/expr"
+	exprlang "github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/ast"
 	"github.com/expr-lang/expr/checker"
 	"github.com/expr-lang/expr/compiler"
@@ -169,24 +169,24 @@ func (p *Program) shape(vars map[string]any) string {
 	return string(key)
 }
 
-// build compiles the upstream text as expr.Compile does. An [Untyped]
-// program passes nil vars.
+// build compiles the expr-lang text as expr-lang's Compile does. An
+// [Untyped] program passes nil vars.
 func (p *Program) build(vars map[string]any) (*vm.Program, error) {
-	var options []upstream.Option
+	var options []exprlang.Option
 	if p.env.typed {
-		options = append(options, upstream.Env(vars))
+		options = append(options, exprlang.Env(vars))
 	}
 
-	options = append(options, upstream.AllowUndefinedVariables())
+	options = append(options, exprlang.AllowUndefinedVariables())
 
 	if p.env.typed {
 		nilSafe := patcher.NilSafe{}
 		name, function := nilSafe.Function()
-		options = append(options, upstream.Function(name, function), upstream.Patch(nilSafe))
+		options = append(options, exprlang.Function(name, function), exprlang.Patch(nilSafe))
 	}
 
 	if p.boolean {
-		options = append(options, upstream.AsBool())
+		options = append(options, exprlang.AsBool())
 	}
 
 	config := conf.CreateNew()
@@ -200,7 +200,7 @@ func (p *Program) build(vars map[string]any) (*vm.Program, error) {
 
 	config.Check()
 
-	tree, err := parser.ParseWithConfig(p.source.upstream, config)
+	tree, err := parser.ParseWithConfig(p.source.exprlang, config)
 	if err != nil {
 		return nil, p.parseError(err)
 	}
@@ -268,7 +268,7 @@ func compile(text string, env Env, boolean bool) (*Program, error) {
 		return p, nil
 	}
 
-	tree, err := parser.Parse(s.upstream)
+	tree, err := parser.Parse(s.exprlang)
 	if err != nil {
 		return nil, p.parseError(err)
 	}
