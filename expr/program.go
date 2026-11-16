@@ -180,7 +180,7 @@ func (p *Program) build(vars map[string]any) (*vm.Program, error) {
 	options = append(options, exprlang.AllowUndefinedVariables())
 
 	for _, patch := range p.env.patches {
-		options = append(options, upstream.Patch(patch))
+		options = append(options, exprlang.Patch(patch))
 	}
 
 	if p.env.typed {
