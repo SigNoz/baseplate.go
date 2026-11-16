@@ -123,7 +123,7 @@ func suggestions(name string, candidates []string) []string {
 	best, bestDistance, tie := "", limit+1, false
 
 	for _, candidate := range candidates {
-		d := distance(name, candidate)
+		d := editDistance(name, candidate)
 
 		switch {
 		case d < bestDistance:
@@ -140,9 +140,9 @@ func suggestions(name string, candidates []string) []string {
 	return []string{best}
 }
 
-// distance is the optimal string alignment distance between a and b: the
+// editDistance is the optimal string alignment distance between a and b: the
 // edits, counting a swap of two neighbors as one, that turn a into b.
-func distance(a, b string) int {
+func editDistance(a, b string) int {
 	x, y := []rune(a), []rune(b)
 
 	d := make([][]int, len(x)+1)
