@@ -13,44 +13,11 @@ import (
 	"github.com/expr-lang/expr/parser"
 )
 
+var identifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
 // maxValueLength caps the characters of a value that
 // [Program.ReferenceValues] returns.
 const maxValueLength = 256
-
-var identifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-
-func stringify(value any) string {
-	var text string
-
-	switch v := value.(type) {
-	case nil:
-		text = "nil"
-	case string:
-		text = v
-	default:
-		t := reflect.TypeOf(v)
-
-		switch {
-		case slices.Contains([]reflect.Kind{reflect.Map, reflect.Slice, reflect.Array}, t.Kind()) || (t.Kind() == reflect.Struct && t != timeType):
-			// Go's formatting follows a value that holds itself until the
-			// stack overflows, so a value JSON rejects shows its type.
-			encoded, err := json.Marshal(v)
-			if err != nil {
-				text = t.String()
-			} else {
-				text = string(encoded)
-			}
-		default:
-			text = fmt.Sprint(v)
-		}
-	}
-
-	if utf8.RuneCountInString(text) > maxValueLength {
-		text = string([]rune(text)[:maxValueLength])
-	}
-
-	return text
-}
 
 // references returns the paths of the variables tree reads: names, and
 // chains of string-keyed members on them, longest first in each chain. A
@@ -135,4 +102,37 @@ func referencePath(node ast.Node, bound map[*ast.IdentifierNode]bool) (string, b
 	}
 
 	return "", false
+}
+
+func stringify(value any) string {
+	var text string
+
+	switch v := value.(type) {
+	case nil:
+		text = "nil"
+	case string:
+		text = v
+	default:
+		t := reflect.TypeOf(v)
+
+		switch {
+		case slices.Contains([]reflect.Kind{reflect.Map, reflect.Slice, reflect.Array}, t.Kind()) || (t.Kind() == reflect.Struct && t != timeType):
+			// Go's formatting follows a value that holds itself until the
+			// stack overflows, so a value JSON rejects shows its type.
+			encoded, err := json.Marshal(v)
+			if err != nil {
+				text = t.String()
+			} else {
+				text = string(encoded)
+			}
+		default:
+			text = fmt.Sprint(v)
+		}
+	}
+
+	if utf8.RuneCountInString(text) > maxValueLength {
+		text = string([]rune(text)[:maxValueLength])
+	}
+
+	return text
 }
