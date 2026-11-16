@@ -71,7 +71,8 @@ func (p *Program) Source() string {
 // such as tls.version or headers["content-type"]. A key that is a plain
 // name is written with a dot, so headers["server"] gives headers.server. A
 // path stops where the expression stops naming members by string, so
-// json.items[0].ok gives json.items.
+// json.items[0].ok gives json.items. A read through $env gives the
+// variable's path, so $env.status_code gives status_code.
 func (p *Program) References() []string {
 	return slices.Clone(p.references)
 }

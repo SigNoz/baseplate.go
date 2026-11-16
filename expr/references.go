@@ -87,7 +87,9 @@ func references(tree *parser.Tree) []string {
 }
 
 // referencePath returns node as a reference when it is a name, other than
-// one bound by let, or a chain of string-keyed members on one.
+// one bound by let, or a chain of string-keyed members on one. A member of
+// $env is the variable it names: $env.status_code is status_code, and a key
+// that isn't a plain name stays on $env, as in $env["k8s.pod"].
 func referencePath(node ast.Node, lets map[string]bool) (string, bool) {
 	switch n := node.(type) {
 	case *ast.IdentifierNode:
@@ -102,12 +104,22 @@ func referencePath(node ast.Node, lets map[string]bool) (string, bool) {
 			return "", false
 		}
 
+		plain := identifierPattern.MatchString(key.Value) && aliases[key.Value] == ""
+
+		if root, ok := n.Node.(*ast.IdentifierNode); ok && root.Value == "$env" {
+			if plain {
+				return key.Value, true
+			}
+
+			return "$env[" + strconv.Quote(key.Value) + "]", true
+		}
+
 		parent, ok := referencePath(n.Node, lets)
 		if !ok {
 			return "", false
 		}
 
-		if identifierPattern.MatchString(key.Value) && aliases[key.Value] == "" {
+		if plain {
 			return parent + "." + key.Value, true
 		}
 

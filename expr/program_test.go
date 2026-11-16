@@ -1644,6 +1644,23 @@ func TestProgram_References(t *testing.T) {
 			env:  tHTTPEnv(),
 		},
 		{
+			name:     "EnvMember_VariablePath",
+			src:      `$env.status_code = 200 AND $env.tls.version = "1.3"`,
+			env:      tHTTPEnv(),
+			expected: []string{"status_code", "tls.version"},
+		},
+		{
+			name:     "EnvBracketKey_StaysOnEnv",
+			src:      `$env["k8s.pod"] = "api"`,
+			env:      Untyped(),
+			expected: []string{`$env["k8s.pod"]`},
+		},
+		{
+			name: "BareEnv_NoReferences",
+			src:  `len($env) > 0`,
+			env:  Untyped(),
+		},
+		{
 			name:     "Untyped_Attributes",
 			src:      `attributes["k8s.pod.name"] = "api" OR severity_text = "ERROR"`,
 			env:      Untyped(),
@@ -1706,6 +1723,13 @@ func TestProgram_ReferenceValues(t *testing.T) {
 			expected: map[string]string{
 				"json.missing":   "nil",
 				"headers.server": "nil",
+			},
+		},
+		{
+			name: "EnvMember_Value",
+			src:  `$env.status_code = 200`,
+			expected: map[string]string{
+				"status_code": "503",
 			},
 		},
 		{
