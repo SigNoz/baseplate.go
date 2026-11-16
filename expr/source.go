@@ -157,7 +157,7 @@ func (s *source) positionError(err error, code errors.Code) error {
 	return errors.Wrap(position, errors.TypeInvalidInput, code, s.respell(upstream.Message, upstream.From, upstream.To))
 }
 
-// respell puts back the source spelling of a rewritten token that an error
+// respell puts back the source spelling of a respelled token that an error
 // at from-to on the upstream text names, as in "invalid operation: =" for
 // "==".
 func (s *source) respell(message string, from, to int) string {
