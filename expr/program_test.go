@@ -1674,6 +1674,12 @@ func TestProgram_References(t *testing.T) {
 			expected: []string{`$env["k8s.pod"]`},
 		},
 		{
+			name:     "EnvLiteralOrBuiltinKey_StaysOnEnv",
+			src:      `$env["true"] = "yes" AND $env["len"] = 1 AND $env["in"] = 2`,
+			env:      Untyped(),
+			expected: []string{`$env["in"]`, `$env["len"]`, `$env["true"]`},
+		},
+		{
 			name: "BareEnv_NoReferences",
 			src:  `len($env) > 0`,
 			env:  Untyped(),
