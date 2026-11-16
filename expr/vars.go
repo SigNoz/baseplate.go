@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/expr-lang/expr/builtin"
 	"github.com/expr-lang/expr/checker/nature"
@@ -12,6 +13,10 @@ import (
 
 	"github.com/SigNoz/baseplate.go/errors"
 )
+
+// timeType is [time.Time], which expressions read as a value, not as a
+// struct of fields.
+var timeType = reflect.TypeFor[time.Time]()
 
 // reserved are the names a top-level var can't take: what the language
 // itself gives meaning to.
