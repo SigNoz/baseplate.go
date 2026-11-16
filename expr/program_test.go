@@ -671,7 +671,7 @@ func TestUntyped_Compile(t *testing.T) {
 }
 
 // The expected results and errors were generated once by compiling every
-// expression on upstream expr v1.17.7 with AllowUndefinedVariables, and
+// expression on expr-lang/expr v1.17.7 with AllowUndefinedVariables, and
 // with AsBool for conditions, then running it with each set of variables.
 func TestUntyped_Run(t *testing.T) {
 	stringKey := map[string]any{"attributes": map[string]any{"key": "checkbody", "service.name": "api"}, "body": "this has CheckBody 101regex", "resource": map[string]any{"service.name": "api"}, "severity_number": 17, "severity_text": "ERROR", "trace_id": nil}
