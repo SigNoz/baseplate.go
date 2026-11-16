@@ -120,10 +120,10 @@ func ExampleNest() {
 	// true
 }
 
-// bodyField reads a member of body from a parsed copy of it, body_map.
-type bodyField struct{}
+// tBodyField reads a member of body from a parsed copy of it, body_map.
+type tBodyField struct{}
 
-func (bodyField) Visit(node *ast.Node) {
+func (tBodyField) Visit(node *ast.Node) {
 	member, ok := (*node).(*ast.MemberNode)
 	if !ok {
 		return
@@ -135,7 +135,7 @@ func (bodyField) Visit(node *ast.Node) {
 }
 
 func ExampleEnv_Patch() {
-	program, err := expr.Compile(`body.level = "error"`, expr.Untyped().Patch(bodyField{}))
+	program, err := expr.Compile(`body.level = "error"`, expr.Untyped().Patch(tBodyField{}))
 	if err != nil {
 		panic(err)
 	}

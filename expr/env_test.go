@@ -2,6 +2,9 @@ package expr
 
 import (
 	"encoding/json"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,11 +17,12 @@ import (
 )
 
 // tRename renames identifier from to identifier to, and counts the trees it
-// has rewritten.
+// has rewritten. It is safe for concurrent use, as a patch on a
+// TypedDynamic program must be.
 type tRename struct {
 	from  string
 	to    string
-	trees *int
+	trees *atomic.Int64
 }
 
 func (r tRename) Visit(node *ast.Node) {
@@ -28,21 +32,21 @@ func (r tRename) Visit(node *ast.Node) {
 	}
 
 	identifier.Value = r.to
-	*r.trees++
+	r.trees.Add(1)
 }
 
 func TestEnv_Patch(t *testing.T) {
 	testCases := []struct {
 		name          string
-		env           func(trees *int) Env
+		env           func(trees *atomic.Int64) Env
 		src           string
 		vars          map[string]any
 		expected      bool
-		expectedTrees int
+		expectedTrees int64
 	}{
 		{
 			name: "Untyped_MemberRoot_Renamed",
-			env: func(trees *int) Env {
+			env: func(trees *atomic.Int64) Env {
 				return Untyped().Patch(tRename{from: "body", to: "body_map", trees: trees})
 			},
 			src: `body.level = "error"`,
@@ -54,7 +58,7 @@ func TestEnv_Patch(t *testing.T) {
 		},
 		{
 			name: "TypedDynamic_BeforeNilSafe_Renamed",
-			env: func(trees *int) Env {
+			env: func(trees *atomic.Int64) Env {
 				return TypedDynamic().Patch(tRename{from: "body", to: "body_map", trees: trees})
 			},
 			src: `body.level = "error"`,
@@ -66,7 +70,7 @@ func TestEnv_Patch(t *testing.T) {
 		},
 		{
 			name: "Untyped_CalleeRenamed",
-			env: func(trees *int) Env {
+			env: func(trees *atomic.Int64) Env {
 				return Untyped().Patch(tRename{from: "env", to: "os_env_func", trees: trees})
 			},
 			src: `env("HOME") = "/home/alpha"`,
@@ -78,7 +82,7 @@ func TestEnv_Patch(t *testing.T) {
 		},
 		{
 			name: "TwoPatches_InOrder",
-			env: func(trees *int) Env {
+			env: func(trees *atomic.Int64) Env {
 				return Untyped().
 					Patch(tRename{from: "tier", to: "plan", trees: trees}).
 					Patch(tRename{from: "plan", to: "level", trees: trees})
@@ -94,7 +98,7 @@ func TestEnv_Patch(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			trees := 0
+			var trees atomic.Int64
 
 			program, err := Compile(testCase.src, testCase.env(&trees))
 			require.NoError(t, err)
@@ -105,14 +109,15 @@ func TestEnv_Patch(t *testing.T) {
 				assert.Equal(t, testCase.expected, got)
 			}
 
-			assert.Equal(t, testCase.expectedTrees, trees)
+			assert.Equal(t, testCase.expectedTrees, trees.Load())
 		})
 	}
 }
 
 // A patch added to one copy of an Env isn't applied by another.
 func TestEnv_Patch_Copies(t *testing.T) {
-	trees := 0
+	var trees atomic.Int64
+
 	base := Untyped().Patch(tRename{from: "tier", to: "plan", trees: &trees})
 	renamed := base.Patch(tRename{from: "plan", to: "level", trees: &trees})
 
@@ -151,7 +156,7 @@ func TestEnv_Patch_Copies(t *testing.T) {
 // A TypedDynamic program with a patch is typed against the names the
 // patched tree reads, here plan, not only the names it was written with.
 func TestEnv_Patch_TypedDynamicShapes(t *testing.T) {
-	trees := 0
+	var trees atomic.Int64
 
 	program, err := Compile(`tier > 5`, TypedDynamic().Patch(tRename{from: "tier", to: "plan", trees: &trees}))
 	require.NoError(t, err)
@@ -662,4 +667,55 @@ func TestEnv_Schema(t *testing.T) {
 func TestEnv_Schema_VarsInvalid(t *testing.T) {
 	_, err := TypedStatic(nil).Schema()
 	tAssertError(t, &tError{code: CodeVarsInvalid}, err)
+}
+
+// Runs of a patched program from many goroutines at once each see the
+// patch's state: an Untyped program patches once, in Compile, and a
+// TypedDynamic program once more for each new set of variable types.
+func TestEnv_Patch_Concurrent(t *testing.T) {
+	testCases := []struct {
+		name          string
+		env           func(trees *atomic.Int64) Env
+		expectedTrees int64
+	}{
+		{
+			name: "Untyped_OnceInCompile",
+			env: func(trees *atomic.Int64) Env {
+				return Untyped().Patch(tRename{from: "body", to: "body_map", trees: trees})
+			},
+			expectedTrees: 1,
+		},
+		{
+			name: "TypedDynamic_OncePerShape",
+			env: func(trees *atomic.Int64) Env {
+				return TypedDynamic().Patch(tRename{from: "body", to: "body_map", trees: trees})
+			},
+			expectedTrees: 33,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var trees atomic.Int64
+
+			program, err := Compile(`body.level = "error"`, testCase.env(&trees))
+			require.NoError(t, err)
+
+			var wg sync.WaitGroup
+			for i := range 32 {
+				wg.Go(func() {
+					got, err := program.Bool(map[string]any{
+						"body_map":            map[string]any{"level": "error"},
+						fmt.Sprintf("v%d", i): i,
+					})
+					assert.NoError(t, err)
+					assert.True(t, got)
+				})
+			}
+
+			wg.Wait()
+
+			assert.Equal(t, testCase.expectedTrees, trees.Load())
+		})
+	}
 }
