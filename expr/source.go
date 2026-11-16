@@ -9,8 +9,8 @@ import (
 	"github.com/SigNoz/baseplate.go/errors"
 )
 
-// aliases maps the language's spellings that upstream expr doesn't have to
-// the upstream ones.
+// aliases maps the language's spellings that expr-lang/expr doesn't have to
+// the expr-lang ones.
 var aliases = map[string]string{
 	"AND":      "and",
 	"OR":       "or",
@@ -21,26 +21,26 @@ var aliases = map[string]string{
 	"regexp":   "matches",
 }
 
-// source is an expression as the user wrote it and as upstream expr reads
+// source is an expression as the user wrote it and as expr-lang/expr reads
 // it.
 type source struct {
 	text      string
-	upstream  string
+	exprlang  string
 	respelled []respelledToken // In source order.
 }
 
-// respelledToken is an alias in the source and the upstream spelling it
+// respelledToken is an alias in the source and the expr-lang spelling it
 // became, such as AND as and or = as ==. Offsets are in code points.
 type respelledToken struct {
 	from         int // From and to are the token's offsets in the source.
 	to           int
-	upstreamFrom int // UpstreamFrom and upstreamTo are its offsets in the upstream text.
-	upstreamTo   int
-	text         string // Text and upstreamText are its spellings in the source and upstream.
-	upstreamText string
+	exprlangFrom int // ExprlangFrom and exprlangTo are its offsets in the expr-lang text.
+	exprlangTo   int
+	text         string // Text and exprlangText are its spellings in the source and expr-lang.
+	exprlangText string
 }
 
-// newSource respells the language's aliases on upstream's own tokens, so
+// newSource respells the language's aliases on expr-lang's own tokens, so
 // quoted text is never touched. An identifier after "." or "?." is a member
 // name and stays as written, and so does the "=" of "let name =".
 func newSource(text string) (*source, error) {
@@ -52,71 +52,71 @@ func newSource(text string) (*source, error) {
 	}
 
 	runes := []rune(text)
-	upstream := make([]rune, 0, len(runes))
+	exprlang := make([]rune, 0, len(runes))
 
 	last, shift := 0, 0
 	for i, token := range tokens {
-		spelling := upstreamSpelling(tokens, i)
+		spelling := exprlangSpelling(tokens, i)
 		if spelling == "" {
 			continue
 		}
 
-		upstream = append(upstream, runes[last:token.From]...)
-		upstream = append(upstream, []rune(spelling)...)
+		exprlang = append(exprlang, runes[last:token.From]...)
+		exprlang = append(exprlang, []rune(spelling)...)
 
-		upstreamFrom := token.From + shift
+		exprlangFrom := token.From + shift
 		shift += len([]rune(spelling)) - (token.To - token.From)
 		s.respelled = append(s.respelled, respelledToken{
 			from:         token.From,
 			to:           token.To,
-			upstreamFrom: upstreamFrom,
-			upstreamTo:   token.To + shift,
+			exprlangFrom: exprlangFrom,
+			exprlangTo:   token.To + shift,
 			text:         token.Value,
-			upstreamText: spelling,
+			exprlangText: spelling,
 		})
 		last = token.To
 	}
 
-	upstream = append(upstream, runes[last:]...)
-	s.upstream = string(upstream)
+	exprlang = append(exprlang, runes[last:]...)
+	s.exprlang = string(exprlang)
 
 	return s, nil
 }
 
-// offset maps an offset in the upstream text to the source. An offset inside
-// a respelled token maps to the same character of the source token, or to
-// its last one when the source token is shorter; an end offset maps at most
-// to the token's end.
-func (s *source) offset(up int, end bool) int {
+// offset maps an offset in the expr-lang text to the source. An offset
+// inside a respelled token maps to the same character of the source token,
+// or to its last one when the source token is shorter; an end offset maps
+// at most to the token's end.
+func (s *source) offset(at int, end bool) int {
 	shift := 0
 	for _, r := range s.respelled {
 		switch {
-		case up <= r.upstreamFrom:
-			return up + shift
-		case up < r.upstreamTo:
+		case at <= r.exprlangFrom:
+			return at + shift
+		case at < r.exprlangTo:
 			last := r.to - r.from - 1
 			if end {
 				last++
 			}
 
-			return r.from + min(up-r.upstreamFrom, last)
+			return r.from + min(at-r.exprlangFrom, last)
 		}
 
-		shift = r.to - r.upstreamTo
+		shift = r.to - r.exprlangTo
 	}
 
-	return up + shift
+	return at + shift
 }
 
-// positionError turns an error from expr, whose positions are on the
-// upstream text, into an error on the source with code and suggestions.
+// positionError turns an error from expr-lang, whose positions are on the
+// expr-lang text, into an error on the source with code and suggestions.
 func (s *source) positionError(err error, code errors.Code, suggestions ...string) error {
-	upstream, ok := errors.AsType[*file.Error](err)
+	exprlangErr, ok := errors.AsType[*file.Error](err)
 	if !ok {
 		return errors.New(errors.TypeInvalidInput, code, err.Error())
 	}
 
-	from, to := s.offset(upstream.From, false), s.offset(upstream.To, true)
+	from, to := s.offset(exprlangErr.From, false), s.offset(exprlangErr.To, true)
 
 	bound := (&file.Error{
 		From: from,
@@ -131,7 +131,7 @@ func (s *source) positionError(err error, code errors.Code, suggestions ...strin
 		snippet: bound.Snippet,
 	}
 
-	wrapped := errors.Wrap(position, errors.TypeInvalidInput, code, s.respell(upstream.Message, upstream.From, upstream.To))
+	wrapped := errors.Wrap(position, errors.TypeInvalidInput, code, s.respell(exprlangErr.Message, exprlangErr.From, exprlangErr.To))
 	if len(suggestions) > 0 {
 		return wrapped.WithSuggestions(suggestions...)
 	}
@@ -140,26 +140,26 @@ func (s *source) positionError(err error, code errors.Code, suggestions ...strin
 }
 
 // respell puts back the source spelling of a respelled token that an error
-// at from-to on the upstream text names, as in "invalid operation: =" for
+// at from-to on the expr-lang text names, as in "invalid operation: =" for
 // "==".
 func (s *source) respell(message string, from, to int) string {
 	to = max(to, from+1)
 
 	for _, r := range s.respelled {
-		if r.upstreamFrom >= to || from >= r.upstreamTo {
+		if r.exprlangFrom >= to || from >= r.exprlangTo {
 			continue
 		}
 
-		message = strings.Replace(message, `("`+r.upstreamText+`")`, `("`+r.text+`")`, 1)
-		message = strings.Replace(message, "operation: "+r.upstreamText+" (", "operation: "+r.text+" (", 1)
+		message = strings.Replace(message, `("`+r.exprlangText+`")`, `("`+r.text+`")`, 1)
+		message = strings.Replace(message, "operation: "+r.exprlangText+" (", "operation: "+r.text+" (", 1)
 	}
 
 	return message
 }
 
-// upstreamSpelling returns the upstream spelling of tokens[i], or "" when it
-// stays as written.
-func upstreamSpelling(tokens []lexer.Token, i int) string {
+// exprlangSpelling returns the expr-lang spelling of tokens[i], or "" when
+// it stays as written.
+func exprlangSpelling(tokens []lexer.Token, i int) string {
 	token := tokens[i]
 
 	switch {
