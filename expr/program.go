@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	upstream "github.com/expr-lang/expr"
+	exprlang "github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/ast"
 	"github.com/expr-lang/expr/checker"
 	"github.com/expr-lang/expr/compiler"
@@ -180,18 +180,18 @@ func (p *Program) shape(vars map[string]any) string {
 	return string(key)
 }
 
-// build compiles the upstream text as expr.Compile does. Only a
-// [TypedDynamic] program passes vars.
+// build compiles the expr-lang text as expr-lang's Compile does. Only
+// a [TypedDynamic] program passes vars.
 func (p *Program) build(vars map[string]any) (*vm.Program, error) {
-	var options []upstream.Option
+	var options []exprlang.Option
 
 	switch {
 	case p.env.static:
-		options = append(options, upstream.Env(p.env.vars))
+		options = append(options, exprlang.Env(p.env.vars))
 	case p.env.dynamic:
-		options = append(options, upstream.Env(vars), upstream.AllowUndefinedVariables())
+		options = append(options, exprlang.Env(vars), exprlang.AllowUndefinedVariables())
 	default:
-		options = append(options, upstream.AllowUndefinedVariables())
+		options = append(options, exprlang.AllowUndefinedVariables())
 	}
 
 	for _, patch := range p.env.patches {
@@ -202,19 +202,19 @@ func (p *Program) build(vars map[string]any) (*vm.Program, error) {
 	case p.env.static:
 		nilSafe := patcher.NilSafeTyped{}
 		name, function := nilSafe.Function()
-		options = append(options, upstream.Function(name, function), upstream.Patch(nilSafe))
+		options = append(options, exprlang.Function(name, function), exprlang.Patch(nilSafe))
 	case p.env.dynamic:
 		nilSafe := patcher.NilSafe{}
 		name, function := nilSafe.Function()
-		options = append(options, upstream.Function(name, function), upstream.Patch(nilSafe))
+		options = append(options, exprlang.Function(name, function), exprlang.Patch(nilSafe))
 	}
 
 	if p.boolean {
-		options = append(options, upstream.AsBool())
+		options = append(options, exprlang.AsBool())
 	}
 
 	if p.env.nodes > 0 {
-		options = append(options, upstream.MaxNodes(p.env.nodes))
+		options = append(options, exprlang.MaxNodes(p.env.nodes))
 	}
 
 	config := conf.CreateNew()
@@ -228,7 +228,7 @@ func (p *Program) build(vars map[string]any) (*vm.Program, error) {
 
 	config.Check()
 
-	tree, err := parser.ParseWithConfig(p.source.upstream, config)
+	tree, err := parser.ParseWithConfig(p.source.exprlang, config)
 	if err != nil {
 		return nil, p.parseError(err)
 	}
@@ -293,10 +293,10 @@ func compile(text string, env Env, boolean bool) (*Program, error) {
 
 	config := conf.CreateNew()
 	if env.nodes > 0 {
-		upstream.MaxNodes(env.nodes)(config)
+		exprlang.MaxNodes(env.nodes)(config)
 	}
 
-	tree, err := parser.ParseWithConfig(s.upstream, config)
+	tree, err := parser.ParseWithConfig(s.exprlang, config)
 	if err != nil {
 		return nil, p.parseError(err)
 	}
