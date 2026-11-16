@@ -99,9 +99,9 @@ func checkHeld(t reflect.Type, path string, seen map[reflect.Type]bool) error {
 }
 
 // checkName returns an error when the var or field at path can't be
-// reached by its name: the name must lex as one identifier that the shim
-// leaves alone, and a var's name must not be a builtin function's or the
-// language's own.
+// reached by its name: the name must lex as one identifier that
+// [newSource] leaves alone, and a var's name must not be a builtin
+// function's or the language's own.
 func checkName(name, path string) error {
 	tokens, err := lexer.Lex(file.NewSource(name))
 	if err != nil || len(tokens) != 2 || tokens[0].Kind != lexer.Identifier || tokens[0].Value != name || aliases[name] != "" {
