@@ -10,11 +10,6 @@ var (
 	ModeStream = Mode{"stream"}
 )
 
-// The codes of the errors for a mode.
-var (
-	CodeModeInvalid = errors.MustNewCode("mode_invalid") // The mode isn't declared.
-)
-
 // Mode is the algorithm a [Miner] uses. Compare modes with ==.
 type Mode struct{ s string }
 

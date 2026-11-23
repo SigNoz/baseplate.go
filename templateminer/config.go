@@ -7,9 +7,12 @@ import (
 	"github.com/SigNoz/baseplate.go/errors"
 )
 
-// The codes of the errors [New] returns for a setting.
+// The codes of the errors for a [Config].
 var (
-	CodeConfigInvalid = errors.MustNewCode("config_invalid") // A setting is out of range.
+	// CodeModeInvalid is for a mode that isn't declared.
+	CodeModeInvalid = errors.MustNewCode("mode_invalid")
+	// CodeConfigInvalid is for a setting out of range.
+	CodeConfigInvalid = errors.MustNewCode("config_invalid")
 )
 
 // Config holds the settings of a [Miner]. Start from [DefaultConfig] and
