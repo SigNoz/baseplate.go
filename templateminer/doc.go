@@ -60,15 +60,15 @@
 // keeps its own, and rejects state saved with another
 // [DrainConfig.Depth] or [DrainConfig.ParamString]. A loading miner with
 // a lower [DrainConfig.MaxClusters] drops the least recently used patterns
-// beyond it.
+// beyond it. A miner without MaxClusters doesn't track use, so state it
+// saves is in creation order and the earliest created patterns go first.
 //
 // # Concurrency
 //
-// A [Miner] is safe for concurrent use. [Miner.Process] and
-// [Miner.LoadState] take its lock one call at a time, while [Miner.Match],
-// [Miner.Patterns] and [Miner.State] can run together. A caller that
-// processes independent streams in parallel, such as each service's logs,
-// gives each stream its own miner.
+// A [Miner] is safe for concurrent use. [Miner.Process] calls for lines
+// that fit a pattern as it is run together, as do [Miner.Match],
+// [Miner.Patterns] and [Miner.State]. Creating a pattern, widening a
+// template and [Miner.LoadState] take the miner's lock one call at a time.
 //
 // # Errors
 //

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/SigNoz/baseplate.go/errors"
 )
@@ -91,6 +92,8 @@ type childState struct {
 }
 
 func newDrain(config DrainConfig) *drain {
+	config.ExtraDelimiters = slices.Clone(config.ExtraDelimiters)
+
 	return &drain{
 		config:   config,
 		root:     map[int]*node{},
@@ -156,7 +159,8 @@ func (d *drain) Process(line string) (Pattern, *Change) {
 
 // Match finds the pattern line fully matches: first along the search tree,
 // then, when the tree finds none, among every pattern of the line's token
-// count, preferring the one with the fewest parameters.
+// count. Of equally good patterns it takes the one with the most
+// parameters, as Drain3 does.
 func (d *drain) Match(line string) (Pattern, bool) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -300,7 +304,13 @@ func (d *drain) LoadState(state []byte) error {
 	return nil
 }
 
+// tokenize splits line into tokens. Invalid UTF-8 becomes U+FFFD first, as
+// it would in the JSON state, so a template and its ID survive a restore.
 func (d *drain) tokenize(line string) []string {
+	if !utf8.ValidString(line) {
+		line = strings.ToValidUTF8(line, "\uFFFD")
+	}
+
 	for _, delimiter := range d.config.ExtraDelimiters {
 		line = strings.ReplaceAll(line, delimiter, " ")
 	}
@@ -513,8 +523,18 @@ func (d *drain) dropLeastRecent() {
 // touch marks c as the most recently used cluster. It needs only the read
 // lock.
 func (d *drain) touch(c *cluster) {
-	if d.config.MaxClusters > 0 {
-		c.lastUsed.Store(d.used.Add(1))
+	if d.config.MaxClusters == 0 {
+		return
+	}
+
+	// A concurrent touch may have stored a newer stamp since this one was
+	// taken; keep the newest.
+	stamp := d.used.Add(1)
+	for {
+		last := c.lastUsed.Load()
+		if last >= stamp || c.lastUsed.CompareAndSwap(last, stamp) {
+			return
+		}
 	}
 }
 

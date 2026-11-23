@@ -15,6 +15,8 @@ import (
 // The expected patterns and matches are what Drain3 0.9.11 returns for the
 // same lines and settings, with match's "fallback" strategy.
 func TestMinerProcess(t *testing.T) {
+	const noMatch = "(no match)"
+
 	testCases := []struct {
 		name             string
 		drain            func(*DrainConfig)
@@ -85,7 +87,7 @@ func TestMinerProcess(t *testing.T) {
 				tPattern("gamma four five six", 1),
 				tPattern("alpha one", 1),
 			},
-			expectedMatches: []string{"alpha one", tNoMatch, "gamma four five six", "alpha one"},
+			expectedMatches: []string{"alpha one", noMatch, "gamma four five six", "alpha one"},
 		},
 		{
 			name:  "MaxChildren_LaterTokensShareParamNode",
@@ -122,7 +124,7 @@ func TestMinerProcess(t *testing.T) {
 				pattern, ok := miner.Match(line)
 				if !ok {
 					assert.Equal(t, Pattern{}, pattern)
-					matches = append(matches, tNoMatch)
+					matches = append(matches, noMatch)
 
 					continue
 				}
@@ -391,8 +393,6 @@ func TestMinerProcess_Changes(t *testing.T) {
 		})
 	}
 }
-
-const tNoMatch = "(no match)"
 
 type tResult struct {
 	pattern Pattern
