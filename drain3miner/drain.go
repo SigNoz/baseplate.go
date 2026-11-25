@@ -68,7 +68,7 @@ type group struct {
 	root       *node              // Nil until the group's first cluster.
 	clusters   map[int64]*cluster // By cluster ID.
 	version    uint64             // Bumped whenever a pattern is created or widened.
-	dropped    int                // Clusters marked dropped since the last sweep, under the forest's evictMu.
+	dropped    []int64            // IDs of clusters marked dropped since the last sweep, under the forest's evictMu.
 }
 
 // node is an inner node of the search tree. Its children are keyed by
@@ -651,12 +651,12 @@ func (f *forest) dropLeastRecent() {
 		f.live--
 
 		g := f.lookup(len(dropped.cluster.tokens))
-		if g.dropped == 0 {
+		if len(g.dropped) == 0 {
 			f.swept = append(f.swept, g)
 			f.pending.Add(1)
 		}
 
-		g.dropped++
+		g.dropped = append(g.dropped, dropped.cluster.id)
 
 		return
 	}
@@ -701,11 +701,13 @@ func (f *forest) sweep() {
 	for _, g := range groups {
 		g.mu.Lock()
 		f.evictMu.Lock()
-		maps.DeleteFunc(g.clusters, func(_ int64, c *cluster) bool {
-			return c.isDropped()
-		})
-		g.dropped = 0
+		ids := g.dropped
+		g.dropped = nil
 		f.evictMu.Unlock()
+
+		for _, id := range ids {
+			delete(g.clusters, id)
+		}
 		g.mu.Unlock()
 	}
 }
