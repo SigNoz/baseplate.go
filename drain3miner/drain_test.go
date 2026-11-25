@@ -3,6 +3,7 @@ package drain3miner
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -573,6 +574,38 @@ func TestMiner_ConcurrentUse(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, []Pattern{tPattern("worker <*> step <*> done", 4800)}, miner.Patterns())
+}
+
+// Many goroutines creating patterns of several token counts under a small
+// MaxClusters drop each other's patterns; go test -race checks the
+// locking, and the miner keeps at most MaxClusters.
+func TestMiner_ConcurrentUse_MaxClustersAcrossTokenCounts(t *testing.T) {
+	miner := tNewMiner(t, func(config *DrainConfig) { config.MaxClusters = 4 })
+
+	var wg sync.WaitGroup
+	for worker := range 8 {
+		wg.Go(func() {
+			for i := range 300 {
+				words := strings.Repeat(" w", i%6)
+				miner.Process(fmt.Sprintf("event%d kind%d%s", worker, i%5, words))
+				_, _ = miner.ProcessBatch([]string{
+					fmt.Sprintf("batch%d item%d%s", worker, i%3, words),
+					"steady line here",
+				})
+			}
+		})
+		wg.Go(func() {
+			for range 50 {
+				assert.LessOrEqual(t, len(miner.Patterns()), 4)
+				_, err := miner.State()
+				assert.NoError(t, err)
+			}
+		})
+	}
+
+	wg.Wait()
+
+	assert.LessOrEqual(t, len(miner.Patterns()), 4)
 }
 
 func tNewMiner(t *testing.T, edit func(*DrainConfig)) Miner {

@@ -69,12 +69,15 @@
 //
 // # Concurrency
 //
-// A [Miner] is safe for concurrent use. [Miner.Process] calls for lines
-// that fit a pattern as it is run together, as do [Miner.ProcessBatch]
-// calls whose lines all fit, [Miner.Match], [Miner.Patterns] and
-// [Miner.State]. Creating a pattern, widening a template, a batch with
-// such a line and [Miner.LoadState] take the miner's lock one call at a
-// time.
+// A [Miner] is safe for concurrent use. Lines with different token counts
+// never share a pattern, so the miner keeps each token count's patterns
+// apart, each behind its own lock. [Miner.Process] calls for lines that
+// fit a pattern as it is run together, as do [Miner.ProcessBatch] calls
+// whose lines all fit, [Miner.Match], [Miner.Patterns] and [Miner.State].
+// Creating a pattern or widening a template locks only the patterns of
+// that line's token count, so lines of other token counts go on; a batch
+// with such a line processes all its lines under the locks of their token
+// counts. [Miner.LoadState] swaps in the loaded patterns at once.
 //
 // # Errors
 //
