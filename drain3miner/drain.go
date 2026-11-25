@@ -37,6 +37,7 @@ type drain struct {
 	root     map[int]*node      // First layer, keyed by token count.
 	clusters map[int64]*cluster // Patterns kept, by cluster ID.
 	lastID   int64
+	version  uint64        // Bumped whenever a pattern is created or widened, or state is loaded.
 	used     atomic.Uint64 // Last use stamp handed out, for MaxClusters.
 	stamped  stampHeap     // Every cluster, by the use stamp it had when pushed or last fixed; only with MaxClusters.
 }
@@ -91,6 +92,23 @@ type childState struct {
 	Node nodeState `json:"node"`
 }
 
+// batchLine is one distinct line of a ProcessBatch call. Cluster is the
+// pattern it fits as it is, valid while the drain's version is still
+// version; nil means it must be searched again.
+type batchLine struct {
+	tokens  []string
+	cluster *cluster
+	version uint64
+}
+
+// batchCount gathers the lines of a batch that a cluster counts.
+type batchCount struct {
+	cluster *cluster
+	lines   int64
+	base    int64 // Count before the batch.
+	last    int   // Index of the batch's last line in the cluster.
+}
+
 func newDrain(config DrainConfig) *drain {
 	config.ExtraDelimiters = slices.Clone(config.ExtraDelimiters)
 
@@ -122,39 +140,73 @@ func (d *drain) Process(line string) (Pattern, *Change) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	c := d.treeSearch(tokens, d.config.SimThreshold, false)
-	if c == nil {
-		d.lastID++
-		c = newCluster(d.lastID, tokens, 1)
-		d.insert(c)
-		d.addToTree(c)
-
-		return c.pattern(), &Change{To: c.hash}
-	}
-
-	changed := false
-	for i, token := range tokens {
-		if token != c.tokens[i] && c.tokens[i] != d.config.ParamString {
-			c.tokens[i] = d.config.ParamString
-			changed = true
-		}
-	}
-
-	var change *Change
-	if changed {
-		from := c.hash
-		c.template = strings.Join(c.tokens, " ")
-		c.hash = hashTemplate(c.template)
-		change = &Change{
-			From: from,
-			To:   c.hash,
-		}
-	}
-
-	c.count.Add(1)
-	d.touch(c)
+	c, change := d.processLocked(tokens)
 
 	return c.pattern(), change
+}
+
+// ProcessBatch processes lines as Process would one after another, and
+// returns each line's pattern and change at the same index. It tokenizes
+// and searches each distinct line once. When every line fits a pattern as
+// it is, the batch runs under the read lock and adds one count per
+// pattern; otherwise it runs once in order under the write lock. A line's
+// Count is the pattern's count as Process would return it.
+func (d *drain) ProcessBatch(lines []string) ([]Pattern, []*Change) {
+	if len(lines) == 0 {
+		return nil, nil
+	}
+
+	index := make(map[string]int, len(lines))
+	lineOf := make([]int, len(lines))
+	distinct := make([]batchLine, 0)
+
+	for i, line := range lines {
+		j, ok := index[line]
+		if !ok {
+			j = len(distinct)
+			index[line] = j
+			distinct = append(distinct, batchLine{tokens: d.tokenize(line)})
+		}
+
+		lineOf[i] = j
+	}
+
+	d.mu.RLock()
+	if patterns, ok := d.countBatch(lineOf, distinct); ok {
+		d.mu.RUnlock()
+
+		return patterns, make([]*Change, len(lines))
+	}
+	d.mu.RUnlock()
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	patterns := make([]Pattern, len(lines))
+	changes := make([]*Change, len(lines))
+
+	for i, j := range lineOf {
+		entry := &distinct[j]
+		if entry.cluster != nil && entry.version == d.version {
+			entry.cluster.count.Add(1)
+			d.touch(entry.cluster)
+			patterns[i] = entry.cluster.pattern()
+
+			continue
+		}
+
+		c, change := d.processLocked(entry.tokens)
+		patterns[i] = c.pattern()
+		changes[i] = change
+		entry.cluster = nil
+
+		if change == nil {
+			entry.cluster = c
+			entry.version = d.version
+		}
+	}
+
+	return patterns, changes
 }
 
 // Match finds the pattern line fully matches: first along the search tree,
@@ -297,11 +349,113 @@ func (d *drain) LoadState(state []byte) error {
 
 	d.root = loaded.root
 	d.clusters = loaded.clusters
+	d.version++
 	d.lastID = loaded.lastID
 	d.used.Store(loaded.used.Load())
 	d.stamped = loaded.stamped
 
 	return nil
+}
+
+// processLocked puts tokens into the best matching cluster or a new one,
+// under the write lock, and bumps the version when it creates or widens
+// one.
+func (d *drain) processLocked(tokens []string) (*cluster, *Change) {
+	c := d.treeSearch(tokens, d.config.SimThreshold, false)
+	if c == nil {
+		// The cluster widens its tokens in place, and a batch reuses a
+		// line's tokens, so the cluster gets its own copy.
+		d.lastID++
+		c = newCluster(d.lastID, slices.Clone(tokens), 1)
+		d.insert(c)
+		d.addToTree(c)
+		d.version++
+
+		return c, &Change{To: c.hash}
+	}
+
+	changed := false
+	for i, token := range tokens {
+		if token != c.tokens[i] && c.tokens[i] != d.config.ParamString {
+			c.tokens[i] = d.config.ParamString
+			changed = true
+		}
+	}
+
+	var change *Change
+	if changed {
+		from := c.hash
+		c.template = strings.Join(c.tokens, " ")
+		c.hash = hashTemplate(c.template)
+		d.version++
+		change = &Change{
+			From: from,
+			To:   c.hash,
+		}
+	}
+
+	c.count.Add(1)
+	d.touch(c)
+
+	return c, change
+}
+
+// countBatch finds, under the read lock, the cluster each distinct line
+// fits as it is and counts the batch's lines there, touching the clusters
+// in the order of their last line. It returns false, counting nothing,
+// when a line fits none; the lines it found keep their cluster for the
+// write-locked pass.
+func (d *drain) countBatch(lineOf []int, distinct []batchLine) ([]Pattern, bool) {
+	for j := range distinct {
+		entry := &distinct[j]
+
+		c := d.treeSearch(entry.tokens, d.config.SimThreshold, false)
+		if c == nil || !d.fits(c, entry.tokens) {
+			return nil, false
+		}
+
+		entry.cluster = c
+		entry.version = d.version
+	}
+
+	counts := make(map[*cluster]*batchCount)
+	ordered := make([]*batchCount, 0)
+
+	for i, j := range lineOf {
+		c := distinct[j].cluster
+
+		count := counts[c]
+		if count == nil {
+			count = &batchCount{cluster: c}
+			counts[c] = count
+			ordered = append(ordered, count)
+		}
+
+		count.lines++
+		count.last = i
+	}
+
+	slices.SortFunc(ordered, func(a, b *batchCount) int {
+		return cmp.Compare(a.last, b.last)
+	})
+
+	for _, count := range ordered {
+		count.base = count.cluster.count.Add(count.lines) - count.lines
+		d.touch(count.cluster)
+	}
+
+	patterns := make([]Pattern, len(lineOf))
+	for i, j := range lineOf {
+		count := counts[distinct[j].cluster]
+		count.base++
+		patterns[i] = Pattern{
+			ID:       count.cluster.hash,
+			Template: count.cluster.template,
+			Count:    count.base,
+		}
+	}
+
+	return patterns, true
 }
 
 // tokenize splits line into tokens. Invalid UTF-8 becomes U+FFFD first, as

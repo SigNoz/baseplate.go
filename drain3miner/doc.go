@@ -29,6 +29,12 @@
 //		// Use pattern.Template and pattern.Count.
 //	}
 //
+// [Miner.ProcessBatch] does the same for many lines at once, such as the
+// bodies of one request's logs, and returns the same patterns and changes
+// as calling Process for each line in order. It tokenizes and searches
+// each distinct line once and locks the miner once per batch, so it is
+// faster when lines repeat, as log lines do.
+//
 // # Patterns
 //
 // A line is split into tokens on whitespace and on
@@ -66,9 +72,11 @@
 // # Concurrency
 //
 // A [Miner] is safe for concurrent use. [Miner.Process] calls for lines
-// that fit a pattern as it is run together, as do [Miner.Match],
-// [Miner.Patterns] and [Miner.State]. Creating a pattern, widening a
-// template and [Miner.LoadState] take the miner's lock one call at a time.
+// that fit a pattern as it is run together, as do [Miner.ProcessBatch]
+// calls whose lines all fit, [Miner.Match], [Miner.Patterns] and
+// [Miner.State]. Creating a pattern, widening a template, a batch with
+// such a line and [Miner.LoadState] take the miner's lock one call at a
+// time.
 //
 // # Errors
 //

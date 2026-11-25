@@ -8,6 +8,12 @@ type Miner interface {
 	// [Change] when the pattern was created or its template widened, and
 	// with it its ID.
 	Process(line string) (Pattern, *Change)
+	// ProcessBatch processes lines in order, as Process would one after
+	// another, and returns each line's pattern and change at the line's
+	// index. It handles each distinct line once and locks the miner once
+	// per batch, so it is faster than Process for many lines. It returns
+	// nil slices for no lines.
+	ProcessBatch(lines []string) ([]Pattern, []*Change)
 	// Match returns the pattern whose template matches line, with every
 	// parameter standing for one token, and false when none does. It
 	// changes no pattern.

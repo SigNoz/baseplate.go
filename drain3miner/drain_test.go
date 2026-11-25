@@ -394,6 +394,132 @@ func TestMinerProcess_Changes(t *testing.T) {
 	}
 }
 
+// ProcessBatch gives every line the pattern, count and change Process gives
+// it, whatever the batch size, and leaves the same state.
+func TestMinerProcessBatch_SameAsProcess(t *testing.T) {
+	lines := tBatchLines()
+
+	testCases := []struct {
+		name      string
+		drain     func(*DrainConfig)
+		batchSize int
+	}{
+		{
+			name:      "Defaults_BatchOfOne",
+			batchSize: 1,
+		},
+		{
+			name:      "Defaults_BatchOfSeven",
+			batchSize: 7,
+		},
+		{
+			name:      "Defaults_OneBatch",
+			batchSize: len(lines),
+		},
+		{
+			name:      "MaxClusters_DropsInBatch",
+			drain:     func(config *DrainConfig) { config.MaxClusters = 3 },
+			batchSize: 5,
+		},
+		{
+			name:      "KeepNumericTokens_BatchOfThree",
+			drain:     func(config *DrainConfig) { config.KeepNumericTokens = true },
+			batchSize: 3,
+		},
+		{
+			name:      "HighThreshold_BatchOfFifty",
+			drain:     func(config *DrainConfig) { config.SimThreshold = 0.9 },
+			batchSize: 50,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			single := tNewMiner(t, testCase.drain)
+			batched := tNewMiner(t, testCase.drain)
+
+			expected := make([]tResult, 0, len(lines))
+			for _, line := range lines {
+				pattern, change := single.Process(line)
+				expected = append(expected, tResult{pattern: pattern, change: change})
+			}
+
+			actual := make([]tResult, 0, len(lines))
+			for start := 0; start < len(lines); start += testCase.batchSize {
+				patterns, changes := batched.ProcessBatch(lines[start:min(start+testCase.batchSize, len(lines))])
+				require.Len(t, changes, len(patterns))
+
+				for i := range patterns {
+					actual = append(actual, tResult{pattern: patterns[i], change: changes[i]})
+				}
+			}
+
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, single.Patterns(), batched.Patterns())
+
+			expectedState, err := single.State()
+			require.NoError(t, err)
+
+			actualState, err := batched.State()
+			require.NoError(t, err)
+
+			assert.JSONEq(t, string(expectedState), string(actualState))
+		})
+	}
+}
+
+// A line repeated after its pattern widened and was dropped creates the
+// pattern from its own tokens again, not from the widened template.
+func TestMinerProcessBatch_WidenedThenDropped_RecreatedFromLine(t *testing.T) {
+	miner := tNewMiner(t, func(config *DrainConfig) { config.MaxClusters = 1 })
+
+	patterns, changes := miner.ProcessBatch([]string{"queue a drained", "queue b drained", "worker idle now ok", "queue a drained"})
+
+	assert.Equal(t, []Pattern{
+		tPattern("queue a drained", 1),
+		tPattern("queue <*> drained", 2),
+		tPattern("worker idle now ok", 1),
+		tPattern("queue a drained", 1),
+	}, patterns)
+	assert.Equal(t, []*Change{
+		tChange("", "queue a drained"),
+		tChange("queue a drained", "queue <*> drained"),
+		tChange("", "worker idle now ok"),
+		tChange("", "queue a drained"),
+	}, changes)
+}
+
+func TestMinerProcessBatch_NoLines_Nil(t *testing.T) {
+	miner := tNewMiner(t, nil)
+
+	patterns, changes := miner.ProcessBatch(nil)
+
+	assert.Nil(t, patterns)
+	assert.Nil(t, changes)
+	assert.Empty(t, miner.Patterns())
+}
+
+// tBatchLines returns lines that repeat, create patterns, widen them in the
+// middle of a run of repeats, and include empty and whitespace-only lines.
+func tBatchLines() []string {
+	lines := []string{"", "   "}
+	for i := range 60 {
+		lines = append(lines,
+			fmt.Sprintf("user u%d logged in from 10.0.0.%d", i%4, i%3),
+			"GET /health 200",
+			"GET /health 200",
+			fmt.Sprintf("job %c finished step %d", 'a'+rune(i%5), i%2),
+			fmt.Sprintf("cache %s miss key k%d", []string{"hit", "miss", "warm"}[i%3], i),
+			fmt.Sprintf("shard %d of %d ready", i%7, 8),
+		)
+		if i%10 == 9 {
+			lines = append(lines, fmt.Sprintf("rare event number %d at node n%d", i, i/10), "")
+		}
+	}
+
+	return lines
+}
+
 type tResult struct {
 	pattern Pattern
 	change  *Change
@@ -428,6 +554,10 @@ func TestMiner_ConcurrentUse(t *testing.T) {
 		wg.Go(func() {
 			for i := range 200 {
 				miner.Process(fmt.Sprintf("worker %d step %d done", worker, i))
+				_, _ = miner.ProcessBatch([]string{
+					fmt.Sprintf("worker %d step %d done", worker, i),
+					"worker 0 step 0 done",
+				})
 				_, _ = miner.Match("worker 1 step 2 done")
 			}
 		})
@@ -442,7 +572,7 @@ func TestMiner_ConcurrentUse(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, []Pattern{tPattern("worker <*> step <*> done", 1600)}, miner.Patterns())
+	assert.Equal(t, []Pattern{tPattern("worker <*> step <*> done", 4800)}, miner.Patterns())
 }
 
 func tNewMiner(t *testing.T, edit func(*DrainConfig)) Miner {
