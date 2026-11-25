@@ -31,9 +31,7 @@
 //
 // [Miner.ProcessBatch] does the same for many lines at once, such as the
 // bodies of one request's logs, and returns the same patterns and changes
-// as calling Process for each line in order. It tokenizes and searches
-// each distinct line once and locks the miner once per batch, so it is
-// faster when lines repeat, as log lines do.
+// as calling Process for each line in order.
 //
 // # Patterns
 //

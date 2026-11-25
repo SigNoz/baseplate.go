@@ -146,11 +146,12 @@ func (d *drain) Process(line string) (Pattern, *Change) {
 }
 
 // ProcessBatch processes lines as Process would one after another, and
-// returns each line's pattern and change at the same index. It tokenizes
-// and searches each distinct line once. When every line fits a pattern as
-// it is, the batch runs under the read lock and adds one count per
-// pattern; otherwise it runs once in order under the write lock. A line's
-// Count is the pattern's count as Process would return it.
+// returns each line's pattern and change at the same index. Each distinct
+// line is first searched under the read lock; when every line fits a
+// pattern as it is, the counts are added there. Otherwise the batch runs
+// again in order under the write lock, searching only the lines whose
+// earlier result no longer holds. A line's Count is the pattern's count
+// as Process would return it.
 func (d *drain) ProcessBatch(lines []string) ([]Pattern, []*Change) {
 	if len(lines) == 0 {
 		return nil, nil
