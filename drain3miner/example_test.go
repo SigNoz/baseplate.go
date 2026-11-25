@@ -38,6 +38,33 @@ func Example() {
 	// true 4923888337447630434 3
 }
 
+// A batch, such as the bodies of one request's logs, returns each line's
+// pattern and change at the line's index.
+func ExampleMiner_ProcessBatch() {
+	miner, err := drain3miner.New(drain3miner.DefaultConfig())
+	if err != nil {
+		_, _ = fmt.Println(err)
+
+		return
+	}
+
+	patterns, changes := miner.ProcessBatch([]string{
+		"disk full on /var",
+		"disk full on /var",
+		"disk full on /tmp",
+		"disk full on /var",
+	})
+
+	for i, pattern := range patterns {
+		_, _ = fmt.Println(pattern.Template, pattern.Count, changes[i] != nil)
+	}
+	// Output:
+	// disk full on /var 1 true
+	// disk full on /var 2 false
+	// disk full on <*> 3 true
+	// disk full on <*> 4 false
+}
+
 // A miner restarted from its saved state goes on with the same patterns.
 func ExampleMiner_loadState() {
 	config := drain3miner.DefaultConfig()
