@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"hash/fnv"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -49,15 +50,17 @@ type forest struct {
 	groups  atomic.Pointer[map[int]*group]
 	lastID  atomic.Int64
 	used    atomic.Uint64 // Last use stamp handed out, for MaxClusters.
-	evictMu sync.Mutex    // EvictMu guards stamped and live.
+	evictMu sync.Mutex    // EvictMu guards stamped, live, swept and every group's dropped.
 	stamped stampHeap     // Every kept cluster, by the use stamp it had when pushed or last fixed; only with MaxClusters.
 	live    int           // Kept clusters; only with MaxClusters.
+	swept   []*group      // Groups with dropped clusters, to sweep once the dropping call lets go of its locks.
+	pending atomic.Int64  // Len of swept, read without evictMu.
 }
 
 // group holds the patterns of one token count. Mu guards root, clusters
 // and version. A cluster dropped for MaxClusters is marked by the forest
-// without the group's lock, and stays in clusters, ignored, until the
-// group next sweeps.
+// without the group's lock, and stays in clusters, ignored, until the call
+// that dropped it has let go of its locks and sweeps the group.
 type group struct {
 	forest     *forest
 	tokenCount int
@@ -65,7 +68,7 @@ type group struct {
 	root       *node              // Nil until the group's first cluster.
 	clusters   map[int64]*cluster // By cluster ID.
 	version    uint64             // Bumped whenever a pattern is created or widened.
-	dropped    atomic.Int64       // Clusters marked dropped since the last sweep.
+	dropped    int                // Clusters marked dropped since the last sweep, under the forest's evictMu.
 }
 
 // node is an inner node of the search tree. Its children are keyed by
@@ -84,9 +87,13 @@ type cluster struct {
 	template string
 	hash     uint64
 	count    atomic.Int64
-	lastUsed atomic.Uint64 // Use stamp, higher is more recent; set only with MaxClusters.
-	dropped  atomic.Bool   // Set once MaxClusters drops the cluster.
+	lastUsed atomic.Uint64 // Use stamp, higher is more recent, or droppedStamp; set only with MaxClusters.
 }
+
+// droppedStamp is the use stamp of a cluster MaxClusters dropped. Using
+// and dropping a cluster both swap its stamp, so of a use and a drop that
+// race, exactly one takes effect.
+const droppedStamp = math.MaxUint64
 
 // drainState is the JSON form of a drain's state.
 type drainState struct {
@@ -157,9 +164,8 @@ func (d *drain) Process(line string) (Pattern, *Change) {
 	g := d.forest.Load().group(len(tokens))
 
 	g.mu.RLock()
-	if c := g.treeSearch(tokens, d.config.SimThreshold, false); c != nil && g.forest.fits(c, tokens) {
+	if c := g.treeSearch(tokens, d.config.SimThreshold, false); c != nil && g.forest.fits(c, tokens) && g.forest.touch(c) {
 		c.count.Add(1)
-		g.forest.touch(c)
 		pattern := c.pattern()
 		g.mu.RUnlock()
 
@@ -168,11 +174,13 @@ func (d *drain) Process(line string) (Pattern, *Change) {
 	g.mu.RUnlock()
 
 	g.mu.Lock()
-	defer g.mu.Unlock()
-
 	c, change := g.process(tokens)
+	pattern := c.pattern()
+	g.mu.Unlock()
 
-	return c.pattern(), change
+	g.forest.sweep()
+
+	return pattern, change
 }
 
 // ProcessBatch processes lines as Process would one after another, and
@@ -236,6 +244,7 @@ func (d *drain) ProcessBatch(lines []string) ([]Pattern, []*Change) {
 		g.mu.Lock()
 	}
 
+	defer f.sweep()
 	defer func() {
 		for _, g := range groups {
 			g.mu.Unlock()
@@ -247,9 +256,8 @@ func (d *drain) ProcessBatch(lines []string) ([]Pattern, []*Change) {
 
 	for i, j := range lineOf {
 		entry := &distinct[j]
-		if entry.cluster != nil && entry.version == entry.group.version && !entry.cluster.dropped.Load() {
+		if entry.cluster != nil && entry.version == entry.group.version && f.touch(entry.cluster) {
 			entry.cluster.count.Add(1)
-			f.touch(entry.cluster)
 			patterns[i] = entry.cluster.pattern()
 
 			continue
@@ -300,7 +308,7 @@ func (d *drain) Match(line string) (Pattern, bool) {
 func (d *drain) Patterns() []Pattern {
 	f := d.forest.Load()
 	groups := f.lockAll()
-	defer unlockAll(groups)
+	defer f.unlockAll(groups)
 
 	clusters := f.kept(groups)
 	slices.SortFunc(clusters, func(a, b *cluster) int {
@@ -320,7 +328,7 @@ func (d *drain) Patterns() []Pattern {
 func (d *drain) State() ([]byte, error) {
 	f := d.forest.Load()
 	groups := f.lockAll()
-	defer unlockAll(groups)
+	defer f.unlockAll(groups)
 
 	clusters := f.kept(groups)
 	slices.SortFunc(clusters, func(a, b *cluster) int {
@@ -422,6 +430,7 @@ func (d *drain) LoadState(state []byte) error {
 		loaded.group(root.TokenCount).root = n
 	}
 
+	loaded.sweep()
 	d.forest.Store(loaded)
 
 	return nil
@@ -482,17 +491,39 @@ func (f *forest) lookup(tokenCount int) *group {
 	return (*f.groups.Load())[tokenCount]
 }
 
-// lockAll read-locks every group in token-count order and returns them.
+// lockAll read-locks every group in token-count order and returns them,
+// with evictMu held so no cluster is dropped meanwhile. A group added
+// while it locks may hold a cluster that dropped one of the locked groups'
+// clusters, so it then starts over. A group's writer takes evictMu under
+// the group's lock, so lockAll takes it last.
 func (f *forest) lockAll() []*group {
-	groups := slices.SortedFunc(maps.Values(*f.groups.Load()), func(a, b *group) int {
-		return cmp.Compare(a.tokenCount, b.tokenCount)
-	})
+	for {
+		byCount := f.groups.Load()
+		groups := slices.SortedFunc(maps.Values(*byCount), func(a, b *group) int {
+			return cmp.Compare(a.tokenCount, b.tokenCount)
+		})
+
+		for _, g := range groups {
+			g.mu.RLock()
+		}
+
+		f.evictMu.Lock()
+
+		if f.groups.Load() == byCount {
+			return groups
+		}
+
+		f.unlockAll(groups)
+	}
+}
+
+// unlockAll lets go of the locks [forest.lockAll] took.
+func (f *forest) unlockAll(groups []*group) {
+	f.evictMu.Unlock()
 
 	for _, g := range groups {
-		g.mu.RLock()
+		g.mu.RUnlock()
 	}
-
-	return groups
 }
 
 // kept returns the clusters of groups that aren't dropped. The groups must
@@ -501,7 +532,7 @@ func (f *forest) kept(groups []*group) []*cluster {
 	var clusters []*cluster
 	for _, g := range groups {
 		for _, c := range g.clusters {
-			if !c.dropped.Load() {
+			if !c.isDropped() {
 				clusters = append(clusters, c)
 			}
 		}
@@ -550,8 +581,13 @@ func (f *forest) countBatch(lineOf []int, distinct []batchLine) ([]Pattern, bool
 	})
 
 	for _, count := range ordered {
+		if !f.touch(count.cluster) {
+			return nil, false
+		}
+	}
+
+	for _, count := range ordered {
 		count.base = count.cluster.count.Add(count.lines) - count.lines
-		f.touch(count.cluster)
 	}
 
 	patterns := make([]Pattern, len(lineOf))
@@ -571,7 +607,8 @@ func (f *forest) countBatch(lineOf []int, distinct []batchLine) ([]Pattern, bool
 // keep makes room for a new cluster under MaxClusters, marking the least
 // recently used clusters dropped, and starts tracking c's use.
 func (f *forest) keep(c *cluster) {
-	f.touch(c)
+	// A cluster not yet kept can't be dropped, so the touch takes.
+	_ = f.touch(c)
 
 	if f.config.MaxClusters == 0 {
 		return
@@ -605,19 +642,32 @@ func (f *forest) dropLeastRecent() {
 			continue
 		}
 
+		// A use since the load above wins, and the top is looked at again.
+		if !top.cluster.lastUsed.CompareAndSwap(top.stamp, droppedStamp) {
+			continue
+		}
+
 		dropped, _ := heap.Pop(&f.stamped).(stampedCluster)
-		dropped.cluster.dropped.Store(true)
-		f.lookup(len(dropped.cluster.tokens)).dropped.Add(1)
 		f.live--
+
+		g := f.lookup(len(dropped.cluster.tokens))
+		if g.dropped == 0 {
+			f.swept = append(f.swept, g)
+			f.pending.Add(1)
+		}
+
+		g.dropped++
 
 		return
 	}
 }
 
-// touch marks c as the most recently used cluster. It needs no lock.
-func (f *forest) touch(c *cluster) {
+// touch marks c as the most recently used cluster, and reports false,
+// changing nothing, when c was dropped. A caller counts a line in c only
+// after touch reports true. It needs no lock.
+func (f *forest) touch(c *cluster) bool {
 	if f.config.MaxClusters == 0 {
-		return
+		return true
 	}
 
 	// A concurrent touch may have stored a newer stamp since this one was
@@ -625,9 +675,38 @@ func (f *forest) touch(c *cluster) {
 	stamp := f.used.Add(1)
 	for {
 		last := c.lastUsed.Load()
-		if last >= stamp || c.lastUsed.CompareAndSwap(last, stamp) {
-			return
+		if last == droppedStamp {
+			return false
 		}
+
+		if last >= stamp || c.lastUsed.CompareAndSwap(last, stamp) {
+			return true
+		}
+	}
+}
+
+// sweep deletes the clusters dropped for MaxClusters from their groups.
+// A call that may drop clusters runs it after letting go of its locks.
+func (f *forest) sweep() {
+	if f.pending.Load() == 0 {
+		return
+	}
+
+	f.evictMu.Lock()
+	groups := f.swept
+	f.swept = nil
+	f.pending.Store(0)
+	f.evictMu.Unlock()
+
+	for _, g := range groups {
+		g.mu.Lock()
+		f.evictMu.Lock()
+		maps.DeleteFunc(g.clusters, func(_ int64, c *cluster) bool {
+			return c.isDropped()
+		})
+		g.dropped = 0
+		f.evictMu.Unlock()
+		g.mu.Unlock()
 	}
 }
 
@@ -679,7 +758,13 @@ func (f *forest) similarity(template, tokens []string, includeParams bool) (floa
 func (g *group) process(tokens []string) (*cluster, *Change) {
 	f := g.forest
 
+	// Another group's new cluster may drop the one found before it is
+	// used; the search then runs again as if the drop came first.
 	c := g.treeSearch(tokens, f.config.SimThreshold, false)
+	for c != nil && !f.touch(c) {
+		c = g.treeSearch(tokens, f.config.SimThreshold, false)
+	}
+
 	if c == nil {
 		// The cluster widens its tokens in place, and a batch reuses a
 		// line's tokens, so the cluster gets its own copy.
@@ -712,32 +797,22 @@ func (g *group) process(tokens []string) (*cluster, *Change) {
 	}
 
 	c.count.Add(1)
-	f.touch(c)
 
 	return c, change
 }
 
 // insert keeps a new cluster in the group, under its write lock, after
-// making room under MaxClusters. Once half the group's clusters are marked
-// dropped it sweeps them out; a dropped cluster's ID stays in its leaf
+// making room under MaxClusters. A dropped cluster's ID stays in its leaf
 // until the next insert there.
 func (g *group) insert(c *cluster) {
 	g.forest.keep(c)
-
-	if dropped := g.dropped.Load(); dropped > 0 && 2*dropped >= int64(len(g.clusters)) {
-		maps.DeleteFunc(g.clusters, func(_ int64, kept *cluster) bool {
-			return kept.dropped.Load()
-		})
-		g.dropped.Add(-dropped)
-	}
-
 	g.clusters[c.id] = c
 }
 
 // cluster returns the kept cluster for id, or nil when it was dropped.
 func (g *group) cluster(id int64) *cluster {
 	c := g.clusters[id]
-	if c == nil || c.dropped.Load() {
+	if c == nil || c.isDropped() {
 		return nil
 	}
 
@@ -916,6 +991,11 @@ func (n *node) state() nodeState {
 	return state
 }
 
+// isDropped reports whether MaxClusters dropped c.
+func (c *cluster) isDropped() bool {
+	return c.lastUsed.Load() == droppedStamp
+}
+
 // newCluster returns a cluster for tokens, with its template and hash.
 func newCluster(id int64, tokens []string, count int64) *cluster {
 	template := strings.Join(tokens, " ")
@@ -945,13 +1025,6 @@ func (c *cluster) pattern() Pattern {
 		ID:       c.hash,
 		Template: c.template,
 		Count:    c.count.Load(),
-	}
-}
-
-// unlockAll read-unlocks groups locked by [forest.lockAll].
-func unlockAll(groups []*group) {
-	for _, g := range groups {
-		g.mu.RUnlock()
 	}
 }
 

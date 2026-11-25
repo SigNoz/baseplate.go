@@ -608,6 +608,51 @@ func TestMiner_ConcurrentUse_MaxClustersAcrossTokenCounts(t *testing.T) {
 	assert.LessOrEqual(t, len(miner.Patterns()), 4)
 }
 
+// A cluster dropped for MaxClusters is deleted from its group even when
+// no other line of its token count comes.
+func TestMiner_MaxClusters_DroppedClustersDeleted(t *testing.T) {
+	miner := tNewMiner(t, func(config *DrainConfig) { config.MaxClusters = 1 })
+
+	for i := range 20 {
+		_, _ = miner.Process(strings.TrimSpace(strings.Repeat("word ", i+1)))
+	}
+
+	d, ok := miner.(*drain)
+	require.True(t, ok)
+
+	held := 0
+	for _, g := range *d.forest.Load().groups.Load() {
+		held += len(g.clusters)
+	}
+
+	assert.Equal(t, 1, held)
+}
+
+// With MaxClusters 1, a new token count's pattern replaces the kept one;
+// a concurrent read sees exactly one pattern, never the dropped one
+// without its replacement.
+func TestMiner_ConcurrentUse_ReadsSeeReplacement(t *testing.T) {
+	miner := tNewMiner(t, func(config *DrainConfig) { config.MaxClusters = 1 })
+	miner.Process("first")
+
+	var wg sync.WaitGroup
+	for worker := range 4 {
+		wg.Go(func() {
+			for i := range 200 {
+				_, _ = miner.Process(strings.TrimSpace(strings.Repeat(fmt.Sprintf("w%d ", worker), 1+(i*4+worker)%40)))
+			}
+		})
+	}
+
+	wg.Go(func() {
+		for range 500 {
+			assert.Len(t, miner.Patterns(), 1)
+		}
+	})
+
+	wg.Wait()
+}
+
 func tNewMiner(t *testing.T, edit func(*DrainConfig)) Miner {
 	t.Helper()
 
