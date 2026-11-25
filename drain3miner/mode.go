@@ -1,4 +1,4 @@
-package templateminer
+package drain3miner
 
 import (
 	"github.com/SigNoz/baseplate.go/errors"

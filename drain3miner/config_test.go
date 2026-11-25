@@ -1,4 +1,4 @@
-package templateminer
+package drain3miner
 
 import (
 	"math"

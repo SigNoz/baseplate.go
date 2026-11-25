@@ -1,4 +1,4 @@
-package templateminer
+package drain3miner
 
 // Miner groups lines of text into patterns. [New] returns one for a [Config].
 // It is safe for concurrent use.

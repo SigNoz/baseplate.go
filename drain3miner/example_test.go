@@ -1,13 +1,13 @@
-package templateminer_test
+package drain3miner_test
 
 import (
 	"fmt"
 
-	"github.com/SigNoz/baseplate.go/templateminer"
+	"github.com/SigNoz/baseplate.go/drain3miner"
 )
 
 func Example() {
-	miner, err := templateminer.New(templateminer.DefaultConfig())
+	miner, err := drain3miner.New(drain3miner.DefaultConfig())
 	if err != nil {
 		_, _ = fmt.Println(err)
 
@@ -40,9 +40,9 @@ func Example() {
 
 // A miner restarted from its saved state goes on with the same patterns.
 func ExampleMiner_loadState() {
-	config := templateminer.DefaultConfig()
+	config := drain3miner.DefaultConfig()
 
-	miner, err := templateminer.New(config)
+	miner, err := drain3miner.New(config)
 	if err != nil {
 		_, _ = fmt.Println(err)
 
@@ -58,7 +58,7 @@ func ExampleMiner_loadState() {
 		return
 	}
 
-	restarted, err := templateminer.New(config)
+	restarted, err := drain3miner.New(config)
 	if err != nil {
 		_, _ = fmt.Println(err)
 

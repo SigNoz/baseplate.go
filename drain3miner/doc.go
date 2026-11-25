@@ -1,4 +1,4 @@
-// Package templateminer groups lines of text, such as log messages, span
+// Package drain3miner groups lines of text, such as log messages, span
 // names or SQL statements, into patterns: templates such as
 // "user <*> logged in from <*>", where <*> stands for the tokens that vary
 // between the lines of a pattern.
@@ -15,7 +15,7 @@
 // returns it, [Miner.Match] finds a line's pattern without changing any,
 // and [Miner.Patterns] lists the patterns so far:
 //
-//	miner, err := templateminer.New(templateminer.DefaultConfig())
+//	miner, err := drain3miner.New(drain3miner.DefaultConfig())
 //	if err != nil {
 //		return err
 //	}
@@ -76,4 +76,4 @@
 // error with [CodeModeInvalid] for an unknown mode and [CodeConfigInvalid]
 // for a Drain setting out of range, [NewMode] one with [CodeModeInvalid],
 // and [Miner.LoadState] one with [CodeStateInvalid].
-package templateminer
+package drain3miner
